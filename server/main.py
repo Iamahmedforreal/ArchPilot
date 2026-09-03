@@ -12,7 +12,3 @@ async def root():
 @app.get("/items/{item_id}")
 async def read_item(item_id: int, q: str | None = None):
     return {"item_id": item_id, "q": q}
-@app.get("/health/db")
-async def database_health():
-    async with engine.connect():
-        return {"database": "connected"}
