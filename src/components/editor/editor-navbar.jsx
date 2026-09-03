@@ -1,3 +1,4 @@
+import { UserButton } from "@clerk/react"
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -36,7 +37,9 @@ function EditorNavbar({
         {centerContent}
       </div>
 
-      <div className="flex min-w-0 flex-1 items-center justify-end" />
+      <div className="flex min-w-0 flex-1 items-center justify-end">
+        <UserButton />
+      </div>
     </header>
   )
 }
