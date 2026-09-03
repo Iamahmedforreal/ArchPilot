@@ -27,18 +27,45 @@ const clerkFormAppearance = {
   },
 }
 
+const authFeatures = [
+  {
+    title: "Architecture maps",
+    description: "Map architecture decisions visually.",
+  },
+  {
+    title: "Context-aware editor",
+    description: "Keep system context close to the editor.",
+  },
+  {
+    title: "Less implementation drift",
+    description: "Move from idea to implementation with less drift.",
+  },
+]
+
 function AuthIntro() {
   return (
-    <section className="hidden min-h-screen flex-col justify-center border-r border-surface-border bg-base px-12 lg:flex">
-      <div className="max-w-sm">
-        <p className="font-mono text-sm text-brand">ArchPilot</p>
-        <h1 className="mt-6 text-3xl font-semibold tracking-tight text-copy-primary">
+    <section className="order-1 flex border-b border-surface-border bg-base px-6 py-10 lg:min-h-screen lg:flex-col lg:justify-center lg:border-b-0 lg:border-r lg:px-12">
+      <div className="mx-auto w-full max-w-xl lg:mx-0">
+        <p className="font-mono text-xs font-medium uppercase tracking-[0.24em] text-brand">
+          ArchPilot
+        </p>
+        <h1 className="mt-6 max-w-sm text-3xl font-semibold tracking-tight text-copy-primary">
           Design systems before the first line ships.
         </h1>
-        <ul className="mt-8 space-y-3 text-sm leading-6 text-copy-muted">
-          <li>Map architecture decisions visually.</li>
-          <li>Keep system context close to the editor.</li>
-          <li>Move from idea to implementation with less drift.</li>
+        <ul className="mt-10 grid border border-surface-border sm:grid-cols-3 lg:grid-cols-1">
+          {authFeatures.map((feature) => (
+            <li
+              key={feature.title}
+              className="group min-h-40 border-t border-surface-border p-6 transition-[background-color,transform] duration-200 first:border-t-0 hover:-translate-y-1 hover:bg-surface sm:border-l sm:border-t-0 sm:first:border-l-0 lg:border-l-0 lg:border-t lg:first:border-t-0"
+            >
+              <p className="font-mono text-xs font-medium uppercase tracking-[0.18em] text-brand">
+                {feature.title}
+              </p>
+              <p className="mt-5 text-sm leading-6 text-copy-muted transition-colors duration-200 group-hover:text-copy-secondary">
+                {feature.description}
+              </p>
+            </li>
+          ))}
         </ul>
       </div>
     </section>
@@ -51,7 +78,7 @@ function AuthPage({ mode }) {
   return (
     <main className="grid min-h-screen bg-base text-copy-primary lg:grid-cols-[minmax(0,0.9fr)_minmax(420px,1fr)]">
       <AuthIntro />
-      <section className="flex min-h-screen items-center justify-center px-6 py-10">
+      <section className="order-2 flex min-h-[70vh] items-center justify-center px-6 py-10 lg:min-h-screen">
         <AuthComponent
           path={mode === "sign-up" ? SIGN_UP_URL : SIGN_IN_URL}
           routing="path"
