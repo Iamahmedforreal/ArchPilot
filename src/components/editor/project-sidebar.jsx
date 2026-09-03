@@ -26,6 +26,7 @@ function ProjectSidebar({
 
       <aside
         aria-hidden={!isOpen}
+        inert={isOpen ? undefined : ""}
         className={cn(
           "fixed left-0 top-14 bottom-0 z-40 flex w-80 max-w-[calc(100vw-1rem)] flex-col border-r border-surface-border bg-sidebar text-sidebar-foreground shadow-2xl backdrop-blur-xl transition-transform duration-200 ease-out",
           isOpen ? "translate-x-0" : "-translate-x-full",
