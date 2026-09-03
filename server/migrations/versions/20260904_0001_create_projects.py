@@ -18,22 +18,13 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.execute(
-        """
-        DO $$
-        BEGIN
-            CREATE TYPE project_status AS ENUM ('DRAFT', 'ARCHIVED');
-        EXCEPTION
-            WHEN duplicate_object THEN NULL;
-        END $$;
-        """
-    )
     project_status = postgresql.ENUM(
         "DRAFT",
         "ARCHIVED",
         name="project_status",
         create_type=False,
     )
+    project_status.create(op.get_bind(), checkfirst=False)
 
     op.create_table(
         "projects",
@@ -72,7 +63,12 @@ def downgrade() -> None:
     op.drop_index("ix_projects_owner_id", table_name="projects")
     op.drop_index("ix_projects_created_at", table_name="projects")
     op.drop_table("projects")
-    sa.Enum("DRAFT", "ARCHIVED", name="project_status").drop(
+    postgresql.ENUM(
+        "DRAFT",
+        "ARCHIVED",
+        name="project_status",
+        create_type=False,
+    ).drop(
         op.get_bind(),
-        checkfirst=True,
+        checkfirst=False,
     )
