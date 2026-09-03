@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react"
 import { RedirectToSignIn, useAuth } from "@clerk/react"
+import { Plus } from "lucide-react"
 
 import { AuthPage } from "@/components/auth/auth-page"
 import { EditorNavbar } from "@/components/editor/editor-navbar"
+import { ProjectDialogs } from "@/components/editor/project-dialogs"
 import { ProjectSidebar } from "@/components/editor/project-sidebar"
+import { Button } from "@/components/ui/button"
+import { useProjectDialogs } from "@/hooks/use-project-dialogs"
 import {
   AFTER_SIGN_IN_URL,
   SIGN_IN_URL,
@@ -15,6 +19,7 @@ import {
 
 function EditorShell() {
   const [isProjectSidebarOpen, setIsProjectSidebarOpen] = useState(false)
+  const projectDialogs = useProjectDialogs()
 
   return (
     <main className="flex min-h-screen flex-col bg-base text-copy-primary">
@@ -25,8 +30,30 @@ function EditorShell() {
       <ProjectSidebar
         isOpen={isProjectSidebarOpen}
         onClose={() => setIsProjectSidebarOpen(false)}
+        onCreateProject={projectDialogs.openCreateDialog}
+        onDeleteProject={projectDialogs.openDeleteDialog}
+        onRenameProject={projectDialogs.openRenameDialog}
+        projects={projectDialogs.mockProjects}
       />
-      <section className="relative min-h-0 flex-1 overflow-hidden bg-dotted" />
+      <section className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-dotted px-6 text-center">
+        <div className="max-w-md">
+          <h1 className="text-2xl font-semibold tracking-tight text-copy-primary">
+            Create a project or open an existing one
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-copy-muted">
+            Start a new architecture workspace, or choose a project from the sidebar.
+          </p>
+          <Button
+            type="button"
+            className="mt-6 gap-2"
+            onClick={projectDialogs.openCreateDialog}
+          >
+            <Plus className="h-4 w-4" />
+            New Project
+          </Button>
+        </div>
+      </section>
+      <ProjectDialogs {...projectDialogs} />
     </main>
   )
 }
