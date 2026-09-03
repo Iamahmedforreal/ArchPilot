@@ -1,7 +1,14 @@
 @import 'tailwindcss';
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+@import "@fontsource/inter/400.css";
+@import "@fontsource/inter/500.css";
+@import "@fontsource/inter/600.css";
+@import "@fontsource/inter/700.css";
+@import "@fontsource/inter/800.css";
+@import "@fontsource/instrument-serif/400-italic.css";
+@import "@fontsource/geist-mono/400.css";
+@import "@fontsource/geist-mono/500.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -14,11 +21,13 @@ body {
 }
 
 @theme inline {
-  --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', sans-serif;
-  --font-geist-sans: var(--font-sans);
+  --font-heading: "Inter", sans-serif;
+  --font-sans: "Inter", sans-serif;
+  --font-accent: "Instrument Serif", serif;
+  --font-mono: "Geist Mono", monospace;
   --font-geist-mono: var(--font-mono);
   --color-base: var(--bg-base);
+  --color-canvas: var(--bg-canvas);
   --color-surface: var(--bg-surface);
   --color-elevated: var(--bg-elevated);
   --color-subtle: var(--bg-subtle);
@@ -29,6 +38,7 @@ body {
   --color-copy-muted: var(--text-muted);
   --color-copy-faint: var(--text-faint);
   --color-brand: var(--accent-primary);
+  --color-brand-hover: var(--accent-primary-hover);
   --color-accent-dim: var(--accent-primary-dim);
   --color-ai: var(--accent-ai);
   --color-ai-text: var(--accent-ai-text);
@@ -77,23 +87,25 @@ body {
 
 :root {
   color-scheme: dark;
-  --bg-base: #080809;
-  --bg-surface: #111114;
-  --bg-elevated: #18181c;
-  --bg-subtle: #1e1e23;
-  --border-default: #2a2a30;
-  --border-subtle: #3a3a42;
-  --text-primary: #f0f0f4;
-  --text-secondary: #c0c0cc;
-  --text-muted: #808090;
-  --text-faint: #505060;
-  --accent-primary: #00c8d4;
-  --accent-primary-dim: rgba(0, 200, 212, 0.12);
-  --accent-ai: #6457f9;
-  --accent-ai-text: #8b82ff;
-  --state-error: #ff4d4f;
-  --state-success: #34d399;
-  --state-warning: #fbbf24;
+  --bg-base: #050505;
+  --bg-canvas: #080808;
+  --bg-surface: #0d0d0d;
+  --bg-elevated: #151515;
+  --bg-subtle: #1d1d1d;
+  --border-default: #252525;
+  --border-subtle: #383838;
+  --text-primary: #f7f7f5;
+  --text-secondary: #c4c4c1;
+  --text-muted: #969694;
+  --text-faint: #5f5f5d;
+  --accent-primary: #ff604d;
+  --accent-primary-hover: #ff7564;
+  --accent-primary-dim: rgba(255, 96, 77, 0.14);
+  --accent-ai: #ff604d;
+  --accent-ai-text: #ff7564;
+  --state-error: #ff604d;
+  --state-success: #7ac79b;
+  --state-warning: #f2b45f;
   --background: var(--bg-base);
   --foreground: var(--text-primary);
   --card: var(--bg-surface);
@@ -101,7 +113,7 @@ body {
   --popover: var(--bg-elevated);
   --popover-foreground: var(--text-primary);
   --primary: var(--accent-primary);
-  --primary-foreground: var(--text-primary);
+  --primary-foreground: var(--bg-base);
   --secondary: var(--bg-elevated);
   --secondary-foreground: var(--text-primary);
   --muted: var(--bg-subtle);
@@ -118,7 +130,7 @@ body {
   --chart-4: var(--state-warning);
   --chart-5: var(--state-error);
   --radius: 0.625rem;
-  --sidebar: rgba(17, 17, 20, 0.88);
+  --sidebar: rgba(13, 13, 13, 0.9);
   --sidebar-foreground: var(--text-primary);
   --sidebar-primary: var(--accent-primary);
   --sidebar-primary-foreground: var(--text-primary);
@@ -136,10 +148,22 @@ body {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
   }
+
   html {
     @apply font-sans;
   }
+}
+
+@utility bg-dotted {
+  background-color: var(--bg-base);
+  background-image: radial-gradient(
+    circle,
+    rgba(247, 247, 245, 0.08) 1px,
+    transparent 1px
+  );
+  background-size: 39px 39px;
 }
