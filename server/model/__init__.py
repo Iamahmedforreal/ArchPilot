@@ -1,4 +1,3 @@
-from model.base import Base
-from model.project import Project, ProjectStatus
+from model.project import Base, Project, ProjectStatus
 
 __all__ = ["Base", "Project", "ProjectStatus"]

@@ -7,7 +7,7 @@ import { EditorNavbar } from "@/components/editor/editor-navbar"
 import { ProjectDialogs } from "@/components/editor/project-dialogs"
 import { ProjectSidebar } from "@/components/editor/project-sidebar"
 import { Button } from "@/components/ui/button"
-import { useProjectDialogs } from "@/hooks/use-project-dialogs"
+import { useProjectActions } from "@/hooks/use-project-actions"
 import {
   AFTER_SIGN_IN_URL,
   SIGN_IN_URL,
@@ -19,7 +19,11 @@ import {
 
 function EditorShell() {
   const [isProjectSidebarOpen, setIsProjectSidebarOpen] = useState(false)
-  const projectDialogs = useProjectDialogs()
+  const pathname = normalizePath(window.location.pathname)
+  const activeWorkspaceId = pathname.startsWith("/editor/")
+    ? pathname.replace("/editor/", "")
+    : null
+  const projectActions = useProjectActions(activeWorkspaceId)
 
   return (
     <main className="flex min-h-screen flex-col bg-base text-copy-primary">
@@ -30,10 +34,11 @@ function EditorShell() {
       <ProjectSidebar
         isOpen={isProjectSidebarOpen}
         onClose={() => setIsProjectSidebarOpen(false)}
-        onCreateProject={projectDialogs.openCreateDialog}
-        onDeleteProject={projectDialogs.openDeleteDialog}
-        onRenameProject={projectDialogs.openRenameDialog}
-        projects={projectDialogs.mockProjects}
+        onCreateProject={projectActions.openCreateDialog}
+        onDeleteProject={projectActions.openDeleteDialog}
+        onRenameProject={projectActions.openRenameDialog}
+        projects={projectActions.ownedProjects}
+        sharedProjects={projectActions.sharedProjects}
       />
       <section className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-dotted px-6 text-center">
         <div className="max-w-md">
@@ -46,14 +51,14 @@ function EditorShell() {
           <Button
             type="button"
             className="mt-6 gap-2"
-            onClick={projectDialogs.openCreateDialog}
+            onClick={projectActions.openCreateDialog}
           >
             <Plus className="h-4 w-4" />
             New Project
           </Button>
         </div>
       </section>
-      <ProjectDialogs {...projectDialogs} />
+      <ProjectDialogs {...projectActions} />
     </main>
   )
 }

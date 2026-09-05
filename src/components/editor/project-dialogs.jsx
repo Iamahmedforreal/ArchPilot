@@ -16,7 +16,7 @@ function ProjectDialogs({
   isLoading,
   projectName,
   setProjectName,
-  slugPreview,
+  roomIdPreview,
   closeDialog,
   submitDialog,
 }) {
@@ -59,9 +59,9 @@ function ProjectDialogs({
                 />
               </label>
               <p className="font-mono text-xs text-copy-muted">
-                Slug:{" "}
+                Room ID:{" "}
                 <span className="text-brand">
-                  {slugPreview || "project-slug"}
+                  {roomIdPreview}
                 </span>
               </p>
             </div>
@@ -69,7 +69,7 @@ function ProjectDialogs({
               <Button type="button" variant="ghost" onClick={closeDialog}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={isLoading || !projectName.trim()}>
+              <Button type="submit" disabled={isLoading}>
                 Create Project
               </Button>
             </DialogFooter>
