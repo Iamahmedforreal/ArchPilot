@@ -29,6 +29,7 @@ async def get_current_user_id(
             secret_key=settings.clerk_secret_key,
             jwt_key=settings.normalized_clerk_jwt_key,
             authorized_parties=settings.clerk_authorized_party_list,
+            accepts_token=["session_token"],
         ),
     )
 

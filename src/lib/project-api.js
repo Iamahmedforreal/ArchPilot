@@ -21,6 +21,7 @@ async function parseProjectResponse(response) {
 
 async function fetchProjects(token) {
   const response = await fetch(`${API_BASE_URL}/api/projects`, {
+    cache: "no-store",
     headers: getProjectHeaders(token),
   })
 

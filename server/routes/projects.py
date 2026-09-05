@@ -20,10 +20,12 @@ router = APIRouter(prefix="/api/projects", tags=["projects"])
 
 @router.get("", response_model=list[ProjectResponse])
 async def get_projects(
+    response: Response,
     owner_id: str = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_db),
 ) -> list[dict]:
-        return await list_projects(session, owner_id)
+    response.headers["Cache-Control"] = "no-store"
+    return await list_projects(session, owner_id)
 
 
 @router.post("", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)

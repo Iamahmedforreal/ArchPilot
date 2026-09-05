@@ -16,10 +16,8 @@ function createSlug(value) {
     .replace(/^-+|-+$/g, "")
 }
 
-function createRoomId(name, suffix) {
-  const slug = createSlug(name) || "untitled-project"
-
-  return `${slug}-${suffix}`
+function createRoomId(projectId) {
+  return String(projectId)
 }
 
 function createShortSuffix() {
@@ -27,7 +25,7 @@ function createShortSuffix() {
 }
 
 function normalizeProject(project) {
-  const roomId = createRoomId(project.name, project.id)
+  const roomId = createRoomId(project.id)
 
   return {
     ...project,
@@ -68,7 +66,7 @@ function useProjectActions(activeWorkspaceId) {
   const [createSuffix, setCreateSuffix] = useState(() => createShortSuffix())
 
   const roomIdPreview = useMemo(
-    () => createRoomId(projectName, createSuffix),
+    () => `${createSlug(projectName) || "untitled-project"}-${createSuffix}`,
     [createSuffix, projectName]
   )
 
@@ -118,45 +116,51 @@ function useProjectActions(activeWorkspaceId) {
     }
 
     setIsLoading(true)
-    const token = await getSessionToken(getToken)
-    if (!token) {
-      setIsLoading(false)
-      return
-    }
 
-    if (dialog.type === "create") {
-      const createdProject = await createProject(token, projectName.trim() || null)
-      const nextWorkspaceId = createRoomId(createdProject.name, createdProject.id)
-      closeDialog()
-      window.location.assign(`/editor/${nextWorkspaceId}`)
-      return
-    }
-
-    if (dialog.type === "rename" && dialog.project) {
-      await renameProject(token, dialog.project.apiId, projectName.trim())
-      await refreshProjects()
-      closeDialog()
-      return
-    }
-
-    if (dialog.type === "delete" && dialog.project) {
-      const deletedProject = dialog.project
-      await deleteProject(token, deletedProject.apiId)
-      closeDialog()
-
-      if (
-        activeWorkspaceId === deletedProject.roomId ||
-        activeWorkspaceId === deletedProject.id
-      ) {
-        window.location.assign("/editor")
+    try {
+      const token = await getSessionToken(getToken)
+      if (!token) {
         return
       }
 
-      await refreshProjects()
-      return
-    }
+      if (dialog.type === "create") {
+        const createdProject = await createProject(token, projectName.trim() || null)
+        const nextWorkspaceId = createRoomId(createdProject.id)
+        closeDialog()
+        window.location.assign(`/editor/${nextWorkspaceId}`)
+        return
+      }
 
-    closeDialog()
+      if (dialog.type === "rename" && dialog.project) {
+        await renameProject(token, dialog.project.apiId, projectName.trim())
+        await refreshProjects()
+        closeDialog()
+        return
+      }
+
+      if (dialog.type === "delete" && dialog.project) {
+        const deletedProject = dialog.project
+        await deleteProject(token, deletedProject.apiId)
+        closeDialog()
+
+        if (
+          activeWorkspaceId === deletedProject.roomId ||
+          activeWorkspaceId === deletedProject.id
+        ) {
+          window.location.assign("/editor")
+          return
+        }
+
+        await refreshProjects()
+        return
+      }
+
+      closeDialog()
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return {
