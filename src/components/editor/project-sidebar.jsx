@@ -11,6 +11,7 @@ function ProjectSidebar({
   onDeleteProject,
   onRenameProject,
   projects = [],
+  sharedProjects = [],
   className,
 }) {
   return (
@@ -48,8 +49,16 @@ function ProjectSidebar({
         </div>
 
         <Tabs defaultValue="my-projects" className="min-h-0 flex-1 gap-4 p-4">
-          <TabsList className="grid w-full grid-cols-1 bg-elevated text-copy-muted">
+          <TabsList
+            className={cn(
+              "grid w-full bg-elevated text-copy-muted",
+              sharedProjects.length > 0 ? "grid-cols-2" : "grid-cols-1"
+            )}
+          >
             <TabsTrigger value="my-projects">My Projects</TabsTrigger>
+            {sharedProjects.length > 0 && (
+              <TabsTrigger value="shared-projects">Shared</TabsTrigger>
+            )}
           </TabsList>
           <TabsContent value="my-projects" className="min-h-0">
             <div className="grid gap-2">
@@ -94,6 +103,27 @@ function ProjectSidebar({
               ))}
             </div>
           </TabsContent>
+          {sharedProjects.length > 0 && (
+            <TabsContent value="shared-projects" className="min-h-0">
+              <div className="grid gap-2">
+                {sharedProjects.map((project) => (
+                  <div
+                    key={project.id}
+                    className="group flex items-center justify-between gap-3 rounded-xl border border-surface-border bg-elevated/60 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm text-copy-primary">
+                        {project.name}
+                      </p>
+                      <p className="truncate font-mono text-xs text-copy-muted">
+                        /{project.slug}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </TabsContent>
+          )}
         </Tabs>
 
         <div className="shrink-0 border-t border-surface-border p-4">

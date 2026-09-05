@@ -4,7 +4,11 @@ from datetime import datetime
 from sqlalchemy import DateTime, Enum, Index, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from model.base import Base
+from sqlalchemy.orm import DeclarativeBase
+
+
+class Base(DeclarativeBase):
+    pass
 
 
 class ProjectStatus(str, enum.Enum):
