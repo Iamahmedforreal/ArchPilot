@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAuth } from "@clerk/react"
 
 import {
@@ -26,6 +26,7 @@ function createShortSuffix() {
 
 const ownedProjectsCache = new Map()
 const ownedProjectsRequests = new Map()
+const ownedProjectsGenerations = new Map()
 
 function normalizeProject(project) {
   const roomId = createRoomId(project.id)
@@ -44,11 +45,34 @@ async function getSessionToken(getToken) {
   return getToken()
 }
 
-function setCachedOwnedProjects(userId, projects) {
+function getOwnedProjectsGeneration(userId) {
+  return ownedProjectsGenerations.get(userId) ?? 0
+}
+
+function nextOwnedProjectsGeneration(userId) {
+  const generation = getOwnedProjectsGeneration(userId) + 1
+  ownedProjectsGenerations.set(userId, generation)
+
+  return generation
+}
+
+function isCurrentOwnedProjectsGeneration(userId, generation) {
+  return getOwnedProjectsGeneration(userId) === generation
+}
+
+function setCachedOwnedProjects(userId, projects, generation) {
+  if (!isCurrentOwnedProjectsGeneration(userId, generation)) {
+    return
+  }
+
   ownedProjectsCache.set(userId, projects)
 }
 
-function removeCachedOwnedProject(userId, projectId) {
+function removeCachedOwnedProject(userId, projectId, generation) {
+  if (!isCurrentOwnedProjectsGeneration(userId, generation)) {
+    return
+  }
+
   if (!ownedProjectsCache.has(userId)) {
     return
   }
@@ -57,32 +81,42 @@ function removeCachedOwnedProject(userId, projectId) {
     userId,
     ownedProjectsCache
       .get(userId)
-      .filter((project) => project.apiId !== projectId)
+      .filter((project) => project.apiId !== projectId),
+    generation
   )
 }
 
 async function loadOwnedProjects(userId, getToken, { force = false } = {}) {
   if (!userId || !getToken) {
-    return []
+    return { generation: 0, projects: [] }
   }
 
   if (!force && ownedProjectsCache.has(userId)) {
-    return ownedProjectsCache.get(userId)
+    return {
+      generation: getOwnedProjectsGeneration(userId),
+      projects: ownedProjectsCache.get(userId),
+    }
   }
 
   if (!force && ownedProjectsRequests.has(userId)) {
     return ownedProjectsRequests.get(userId)
   }
 
-  const request = loadOwnedProjectsFromApi(userId, getToken)
+  const generation = nextOwnedProjectsGeneration(userId)
+  const request = loadOwnedProjectsFromApi(userId, getToken).then((projects) => ({
+    generation,
+    projects,
+  }))
   ownedProjectsRequests.set(userId, request)
 
   try {
-    const projects = await request
-    setCachedOwnedProjects(userId, projects)
-    return projects
+    const result = await request
+    setCachedOwnedProjects(userId, result.projects, result.generation)
+    return result
   } finally {
-    ownedProjectsRequests.delete(userId)
+    if (ownedProjectsRequests.get(userId) === request) {
+      ownedProjectsRequests.delete(userId)
+    }
   }
 }
 
@@ -105,22 +139,33 @@ function useProjectActions(activeWorkspaceId, navigate) {
   const [ownedProjects, setOwnedProjects] = useState([])
   const [sharedProjects] = useState([])
   const [createSuffix, setCreateSuffix] = useState(() => createShortSuffix())
+  const ownedProjectsRef = useRef(ownedProjects)
 
   const roomIdPreview = useMemo(
     () => `${createSlug(projectName) || "untitled-project"}-${createSuffix}`,
     [createSuffix, projectName]
   )
 
+  useEffect(() => {
+    ownedProjectsRef.current = ownedProjects
+  }, [ownedProjects])
+
   const refreshProjects = useCallback(async () => {
-    setOwnedProjects(await loadOwnedProjects(userId, getToken, { force: true }))
+    const result = await loadOwnedProjects(userId, getToken, { force: true })
+
+    if (userId && isCurrentOwnedProjectsGeneration(userId, result.generation)) {
+      setOwnedProjects(result.projects)
+    }
   }, [getToken, userId])
 
   useEffect(() => {
     let ignore = false
 
-    loadOwnedProjects(userId, getToken).then((projects) => {
+    loadOwnedProjects(userId, getToken).then((result) => {
       if (!ignore) {
-        setOwnedProjects(projects)
+        if (userId && isCurrentOwnedProjectsGeneration(userId, result.generation)) {
+          setOwnedProjects(result.projects)
+        }
       }
     })
 
@@ -165,14 +210,17 @@ function useProjectActions(activeWorkspaceId, navigate) {
       }
 
       if (dialog.type === "create") {
+        const generation = nextOwnedProjectsGeneration(userId)
         const createdProject = await createProject(token, projectName.trim() || null)
+        if (!isCurrentOwnedProjectsGeneration(userId, generation)) {
+          return
+        }
+
         const nextWorkspaceId = createRoomId(createdProject.id)
         const normalizedProject = normalizeProject(createdProject)
-        setOwnedProjects((projects) => {
-          const nextProjects = [normalizedProject, ...projects]
-          setCachedOwnedProjects(userId, nextProjects)
-          return nextProjects
-        })
+        const nextProjects = [normalizedProject, ...ownedProjectsRef.current]
+        setCachedOwnedProjects(userId, nextProjects, generation)
+        setOwnedProjects(nextProjects)
         closeDialog()
         navigate(`/editor/${nextWorkspaceId}`)
         return
@@ -186,12 +234,18 @@ function useProjectActions(activeWorkspaceId, navigate) {
       }
 
       if (dialog.type === "delete" && dialog.project) {
+        const generation = nextOwnedProjectsGeneration(userId)
         const deletedProject = dialog.project
         await deleteProject(token, deletedProject.apiId)
-        setOwnedProjects((projects) =>
-          projects.filter((project) => project.apiId !== deletedProject.apiId)
+        if (!isCurrentOwnedProjectsGeneration(userId, generation)) {
+          return
+        }
+
+        const nextProjects = ownedProjectsRef.current.filter(
+          (project) => project.apiId !== deletedProject.apiId
         )
-        removeCachedOwnedProject(userId, deletedProject.apiId)
+        setOwnedProjects(nextProjects)
+        removeCachedOwnedProject(userId, deletedProject.apiId, generation)
         closeDialog()
 
         if (
