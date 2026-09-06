@@ -40,8 +40,6 @@ async def create_project(
     owner_id: str,
     name: str | None,
 ) -> dict:
-
-    
     project = Project(
         owner_id=owner_id,
         name=name or "Untitled Project",

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useAuth } from "@clerk/react"
 
 import {
@@ -24,6 +24,10 @@ function createShortSuffix() {
   return Math.random().toString(36).slice(2, 8)
 }
 
+const ownedProjectsCache = new Map()
+const ownedProjectsRequests = new Map()
+const ownedProjectsGenerations = new Map()
+
 function normalizeProject(project) {
   const roomId = createRoomId(project.id)
 
@@ -41,11 +45,82 @@ async function getSessionToken(getToken) {
   return getToken()
 }
 
-async function loadOwnedProjects(userId, getToken) {
-  if (!userId || !getToken) {
-    return []
+function getOwnedProjectsGeneration(userId) {
+  return ownedProjectsGenerations.get(userId) ?? 0
+}
+
+function nextOwnedProjectsGeneration(userId) {
+  const generation = getOwnedProjectsGeneration(userId) + 1
+  ownedProjectsGenerations.set(userId, generation)
+
+  return generation
+}
+
+function isCurrentOwnedProjectsGeneration(userId, generation) {
+  return getOwnedProjectsGeneration(userId) === generation
+}
+
+function setCachedOwnedProjects(userId, projects, generation) {
+  if (!isCurrentOwnedProjectsGeneration(userId, generation)) {
+    return
   }
 
+  ownedProjectsCache.set(userId, projects)
+}
+
+function removeCachedOwnedProject(userId, projectId, generation) {
+  if (!isCurrentOwnedProjectsGeneration(userId, generation)) {
+    return
+  }
+
+  if (!ownedProjectsCache.has(userId)) {
+    return
+  }
+
+  setCachedOwnedProjects(
+    userId,
+    ownedProjectsCache
+      .get(userId)
+      .filter((project) => project.apiId !== projectId),
+    generation
+  )
+}
+
+async function loadOwnedProjects(userId, getToken, { force = false } = {}) {
+  if (!userId || !getToken) {
+    return { generation: 0, projects: [] }
+  }
+
+  if (!force && ownedProjectsCache.has(userId)) {
+    return {
+      generation: getOwnedProjectsGeneration(userId),
+      projects: ownedProjectsCache.get(userId),
+    }
+  }
+
+  if (!force && ownedProjectsRequests.has(userId)) {
+    return ownedProjectsRequests.get(userId)
+  }
+
+  const generation = nextOwnedProjectsGeneration(userId)
+  const request = loadOwnedProjectsFromApi(userId, getToken).then((projects) => ({
+    generation,
+    projects,
+  }))
+  ownedProjectsRequests.set(userId, request)
+
+  try {
+    const result = await request
+    setCachedOwnedProjects(userId, result.projects, result.generation)
+    return result
+  } finally {
+    if (ownedProjectsRequests.get(userId) === request) {
+      ownedProjectsRequests.delete(userId)
+    }
+  }
+}
+
+async function loadOwnedProjectsFromApi(userId, getToken) {
   const token = await getSessionToken(getToken)
   if (!token) {
     return []
@@ -56,7 +131,7 @@ async function loadOwnedProjects(userId, getToken) {
   return projects.map(normalizeProject)
 }
 
-function useProjectActions(activeWorkspaceId) {
+function useProjectActions(activeWorkspaceId, navigate) {
   const { getToken, userId } = useAuth()
   const [dialog, setDialog] = useState({ type: null, project: null })
   const [projectName, setProjectName] = useState("")
@@ -64,22 +139,33 @@ function useProjectActions(activeWorkspaceId) {
   const [ownedProjects, setOwnedProjects] = useState([])
   const [sharedProjects] = useState([])
   const [createSuffix, setCreateSuffix] = useState(() => createShortSuffix())
+  const ownedProjectsRef = useRef(ownedProjects)
 
   const roomIdPreview = useMemo(
     () => `${createSlug(projectName) || "untitled-project"}-${createSuffix}`,
     [createSuffix, projectName]
   )
 
+  useEffect(() => {
+    ownedProjectsRef.current = ownedProjects
+  }, [ownedProjects])
+
   const refreshProjects = useCallback(async () => {
-    setOwnedProjects(await loadOwnedProjects(userId, getToken))
+    const result = await loadOwnedProjects(userId, getToken, { force: true })
+
+    if (userId && isCurrentOwnedProjectsGeneration(userId, result.generation)) {
+      setOwnedProjects(result.projects)
+    }
   }, [getToken, userId])
 
   useEffect(() => {
     let ignore = false
 
-    loadOwnedProjects(userId, getToken).then((projects) => {
+    loadOwnedProjects(userId, getToken).then((result) => {
       if (!ignore) {
-        setOwnedProjects(projects)
+        if (userId && isCurrentOwnedProjectsGeneration(userId, result.generation)) {
+          setOwnedProjects(result.projects)
+        }
       }
     })
 
@@ -124,10 +210,19 @@ function useProjectActions(activeWorkspaceId) {
       }
 
       if (dialog.type === "create") {
+        const generation = nextOwnedProjectsGeneration(userId)
         const createdProject = await createProject(token, projectName.trim() || null)
+        if (!isCurrentOwnedProjectsGeneration(userId, generation)) {
+          return
+        }
+
         const nextWorkspaceId = createRoomId(createdProject.id)
+        const normalizedProject = normalizeProject(createdProject)
+        const nextProjects = [normalizedProject, ...ownedProjectsRef.current]
+        setCachedOwnedProjects(userId, nextProjects, generation)
+        setOwnedProjects(nextProjects)
         closeDialog()
-        window.location.assign(`/editor/${nextWorkspaceId}`)
+        navigate(`/editor/${nextWorkspaceId}`)
         return
       }
 
@@ -139,19 +234,27 @@ function useProjectActions(activeWorkspaceId) {
       }
 
       if (dialog.type === "delete" && dialog.project) {
+        const generation = nextOwnedProjectsGeneration(userId)
         const deletedProject = dialog.project
         await deleteProject(token, deletedProject.apiId)
+        if (!isCurrentOwnedProjectsGeneration(userId, generation)) {
+          return
+        }
+
+        const nextProjects = ownedProjectsRef.current.filter(
+          (project) => project.apiId !== deletedProject.apiId
+        )
+        setOwnedProjects(nextProjects)
+        removeCachedOwnedProject(userId, deletedProject.apiId, generation)
         closeDialog()
 
         if (
           activeWorkspaceId === deletedProject.roomId ||
           activeWorkspaceId === deletedProject.id
         ) {
-          window.location.assign("/editor")
+          navigate("/editor")
           return
         }
-
-        await refreshProjects()
         return
       }
 

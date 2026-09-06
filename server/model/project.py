@@ -1,9 +1,7 @@
 import enum
 from datetime import datetime
-
 from sqlalchemy import DateTime, Enum, Index, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
-
 from sqlalchemy.orm import DeclarativeBase
 
 

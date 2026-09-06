@@ -70,7 +70,7 @@ function ProjectDialogs({
                 Cancel
               </Button>
               <Button type="submit" disabled={isLoading}>
-                Create Project
+                {isLoading ? "Creating..." : "Create Project"}
               </Button>
             </DialogFooter>
           </form>
@@ -102,7 +102,7 @@ function ProjectDialogs({
                 Cancel
               </Button>
               <Button type="submit" disabled={isLoading || !projectName.trim()}>
-                Rename Project
+                {isLoading ? "Renaming..." : "Rename Project"}
               </Button>
             </DialogFooter>
           </form>
@@ -128,7 +128,7 @@ function ProjectDialogs({
                 disabled={isLoading}
                 onClick={submitDialog}
               >
-                Delete Project
+                {isLoading ? "Deleting..." : "Delete Project"}
               </Button>
             </DialogFooter>
           </>
