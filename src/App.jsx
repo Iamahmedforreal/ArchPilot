@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { RedirectToSignIn, useAuth } from "@clerk/react"
 import { Plus } from "lucide-react"
 
@@ -17,13 +17,12 @@ import {
   normalizePath,
 } from "@/lib/auth-routes"
 
-function EditorShell() {
+function EditorShell({ pathname, navigate }) {
   const [isProjectSidebarOpen, setIsProjectSidebarOpen] = useState(false)
-  const pathname = normalizePath(window.location.pathname)
   const activeWorkspaceId = pathname.startsWith("/editor/")
     ? pathname.replace("/editor/", "")
     : null
-  const projectActions = useProjectActions(activeWorkspaceId)
+  const projectActions = useProjectActions(activeWorkspaceId, navigate)
 
   return (
     <main className="flex min-h-screen flex-col bg-base text-copy-primary">
@@ -73,7 +72,25 @@ function RedirectTo({ to }) {
 
 function App() {
   const { isLoaded, isSignedIn } = useAuth()
-  const pathname = normalizePath(window.location.pathname)
+  const [pathname, setPathname] = useState(() =>
+    normalizePath(window.location.pathname)
+  )
+  const navigate = useCallback((to) => {
+    window.history.pushState({}, "", to)
+    setPathname(normalizePath(window.location.pathname))
+  }, [])
+
+  useEffect(() => {
+    function handlePopState() {
+      setPathname(normalizePath(window.location.pathname))
+    }
+
+    window.addEventListener("popstate", handlePopState)
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+    }
+  }, [])
 
   if (!isLoaded) {
     return <main className="min-h-screen bg-base" />
@@ -95,7 +112,7 @@ function App() {
     return <RedirectToSignIn />
   }
 
-  return <EditorShell />
+  return <EditorShell pathname={pathname} navigate={navigate} />
 }
 
 export default App

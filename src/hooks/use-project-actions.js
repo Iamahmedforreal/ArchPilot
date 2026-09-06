@@ -24,6 +24,9 @@ function createShortSuffix() {
   return Math.random().toString(36).slice(2, 8)
 }
 
+const ownedProjectsCache = new Map()
+const ownedProjectsRequests = new Map()
+
 function normalizeProject(project) {
   const roomId = createRoomId(project.id)
 
@@ -41,11 +44,49 @@ async function getSessionToken(getToken) {
   return getToken()
 }
 
-async function loadOwnedProjects(userId, getToken) {
+function setCachedOwnedProjects(userId, projects) {
+  ownedProjectsCache.set(userId, projects)
+}
+
+function removeCachedOwnedProject(userId, projectId) {
+  if (!ownedProjectsCache.has(userId)) {
+    return
+  }
+
+  setCachedOwnedProjects(
+    userId,
+    ownedProjectsCache
+      .get(userId)
+      .filter((project) => project.apiId !== projectId)
+  )
+}
+
+async function loadOwnedProjects(userId, getToken, { force = false } = {}) {
   if (!userId || !getToken) {
     return []
   }
 
+  if (!force && ownedProjectsCache.has(userId)) {
+    return ownedProjectsCache.get(userId)
+  }
+
+  if (!force && ownedProjectsRequests.has(userId)) {
+    return ownedProjectsRequests.get(userId)
+  }
+
+  const request = loadOwnedProjectsFromApi(userId, getToken)
+  ownedProjectsRequests.set(userId, request)
+
+  try {
+    const projects = await request
+    setCachedOwnedProjects(userId, projects)
+    return projects
+  } finally {
+    ownedProjectsRequests.delete(userId)
+  }
+}
+
+async function loadOwnedProjectsFromApi(userId, getToken) {
   const token = await getSessionToken(getToken)
   if (!token) {
     return []
@@ -56,7 +97,7 @@ async function loadOwnedProjects(userId, getToken) {
   return projects.map(normalizeProject)
 }
 
-function useProjectActions(activeWorkspaceId) {
+function useProjectActions(activeWorkspaceId, navigate) {
   const { getToken, userId } = useAuth()
   const [dialog, setDialog] = useState({ type: null, project: null })
   const [projectName, setProjectName] = useState("")
@@ -71,7 +112,7 @@ function useProjectActions(activeWorkspaceId) {
   )
 
   const refreshProjects = useCallback(async () => {
-    setOwnedProjects(await loadOwnedProjects(userId, getToken))
+    setOwnedProjects(await loadOwnedProjects(userId, getToken, { force: true }))
   }, [getToken, userId])
 
   useEffect(() => {
@@ -126,8 +167,14 @@ function useProjectActions(activeWorkspaceId) {
       if (dialog.type === "create") {
         const createdProject = await createProject(token, projectName.trim() || null)
         const nextWorkspaceId = createRoomId(createdProject.id)
+        const normalizedProject = normalizeProject(createdProject)
+        setOwnedProjects((projects) => {
+          const nextProjects = [normalizedProject, ...projects]
+          setCachedOwnedProjects(userId, nextProjects)
+          return nextProjects
+        })
         closeDialog()
-        window.location.assign(`/editor/${nextWorkspaceId}`)
+        navigate(`/editor/${nextWorkspaceId}`)
         return
       }
 
@@ -141,17 +188,19 @@ function useProjectActions(activeWorkspaceId) {
       if (dialog.type === "delete" && dialog.project) {
         const deletedProject = dialog.project
         await deleteProject(token, deletedProject.apiId)
+        setOwnedProjects((projects) =>
+          projects.filter((project) => project.apiId !== deletedProject.apiId)
+        )
+        removeCachedOwnedProject(userId, deletedProject.apiId)
         closeDialog()
 
         if (
           activeWorkspaceId === deletedProject.roomId ||
           activeWorkspaceId === deletedProject.id
         ) {
-          window.location.assign("/editor")
+          navigate("/editor")
           return
         }
-
-        await refreshProjects()
         return
       }
 

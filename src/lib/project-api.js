@@ -20,22 +20,38 @@ async function parseProjectResponse(response) {
 }
 
 async function fetchProjects(token) {
+  const startedAt = performance.now()
   const response = await fetch(`${API_BASE_URL}/api/projects`, {
     cache: "no-store",
     headers: getProjectHeaders(token),
   })
 
-  return parseProjectResponse(response)
+  const projects = await parseProjectResponse(response)
+  console.info("projects.fetch", {
+    durationMs: Math.round(performance.now() - startedAt),
+    status: response.status,
+    count: projects.length,
+  })
+
+  return projects
 }
 
 async function createProject(token, name) {
+  const startedAt = performance.now()
   const response = await fetch(`${API_BASE_URL}/api/projects`, {
     method: "POST",
     headers: getProjectHeaders(token),
     body: JSON.stringify({ name }),
   })
 
-  return parseProjectResponse(response)
+  const project = await parseProjectResponse(response)
+  console.info("projects.create", {
+    durationMs: Math.round(performance.now() - startedAt),
+    status: response.status,
+    projectId: project.id,
+  })
+
+  return project
 }
 
 async function renameProject(token, projectId, name) {
@@ -49,12 +65,20 @@ async function renameProject(token, projectId, name) {
 }
 
 async function deleteProject(token, projectId) {
+  const startedAt = performance.now()
   const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}`, {
     method: "DELETE",
     headers: getProjectHeaders(token),
   })
 
-  return parseProjectResponse(response)
+  const result = await parseProjectResponse(response)
+  console.info("projects.delete", {
+    durationMs: Math.round(performance.now() - startedAt),
+    status: response.status,
+    projectId,
+  })
+
+  return result
 }
 
 export { createProject, deleteProject, fetchProjects, renameProject }
