@@ -16,7 +16,6 @@ function ProjectDialogs({
   isLoading,
   projectName,
   setProjectName,
-  roomIdPreview,
   closeDialog,
   submitDialog,
 }) {
@@ -58,12 +57,6 @@ function ProjectDialogs({
                   className="text-copy-primary"
                 />
               </label>
-              <p className="font-mono text-xs text-copy-muted">
-                Room ID:{" "}
-                <span className="text-brand">
-                  {roomIdPreview}
-                </span>
-              </p>
             </div>
             <DialogFooter className="mt-4 border-surface-border bg-surface/80">
               <Button type="button" variant="ghost" onClick={closeDialog}>

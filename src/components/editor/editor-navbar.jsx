@@ -1,5 +1,5 @@
 import { UserButton } from "@clerk/react"
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react"
+import { PanelLeft } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -10,8 +10,6 @@ function EditorNavbar({
   centerContent = null,
   className,
 }) {
-  const SidebarIcon = isSidebarOpen ? PanelLeftClose : PanelLeftOpen
-
   return (
     <header
       className={cn(
@@ -29,7 +27,7 @@ function EditorNavbar({
           onClick={onToggleSidebar}
           className="text-copy-secondary hover:bg-subtle hover:text-copy-primary"
         >
-          <SidebarIcon className="h-5 w-5" />
+          <PanelLeft className="h-5 w-5" />
         </Button>
       </div>
 

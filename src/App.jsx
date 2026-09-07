@@ -36,6 +36,7 @@ function EditorShell({ pathname, navigate }) {
         onCreateProject={projectActions.openCreateDialog}
         onDeleteProject={projectActions.openDeleteDialog}
         onRenameProject={projectActions.openRenameDialog}
+        activeProjectId={activeWorkspaceId}
         projects={projectActions.ownedProjects}
         sharedProjects={projectActions.sharedProjects}
       />

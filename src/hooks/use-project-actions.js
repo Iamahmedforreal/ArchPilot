@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useAuth } from "@clerk/react"
 
 import {
@@ -8,20 +8,8 @@ import {
   renameProject,
 } from "@/lib/project-api"
 
-function createSlug(value) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-}
-
 function createRoomId(projectId) {
   return String(projectId)
-}
-
-function createShortSuffix() {
-  return Math.random().toString(36).slice(2, 8)
 }
 
 const ownedProjectsCache = new Map()
@@ -138,13 +126,7 @@ function useProjectActions(activeWorkspaceId, navigate) {
   const [isLoading, setIsLoading] = useState(false)
   const [ownedProjects, setOwnedProjects] = useState([])
   const [sharedProjects] = useState([])
-  const [createSuffix, setCreateSuffix] = useState(() => createShortSuffix())
   const ownedProjectsRef = useRef(ownedProjects)
-
-  const roomIdPreview = useMemo(
-    () => `${createSlug(projectName) || "untitled-project"}-${createSuffix}`,
-    [createSuffix, projectName]
-  )
 
   useEffect(() => {
     ownedProjectsRef.current = ownedProjects
@@ -176,7 +158,6 @@ function useProjectActions(activeWorkspaceId, navigate) {
 
   function openCreateDialog() {
     setProjectName("")
-    setCreateSuffix(createShortSuffix())
     setDialog({ type: "create", project: null })
   }
 
@@ -271,7 +252,6 @@ function useProjectActions(activeWorkspaceId, navigate) {
     isLoading,
     ownedProjects,
     projectName,
-    roomIdPreview,
     setProjectName,
     sharedProjects,
     closeDialog,
