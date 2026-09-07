@@ -11,6 +11,7 @@ function ProjectSidebar({
   onCreateProject,
   onDeleteProject,
   onRenameProject,
+  onSelectProject,
   activeProjectId,
   projects = [],
   className,
@@ -45,7 +46,7 @@ function ProjectSidebar({
         <button
           type="button"
           className="min-w-0 flex-1 truncate py-2.5 text-left text-[15px] font-medium leading-5"
-          onClick={onClose}
+          onClick={() => onSelectProject(project)}
         >
           {project.name}
         </button>

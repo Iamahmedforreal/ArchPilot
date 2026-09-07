@@ -23,6 +23,13 @@ function EditorShell({ pathname, navigate }) {
     ? pathname.replace("/editor/", "")
     : null
   const projectActions = useProjectActions(activeWorkspaceId, navigate)
+  const handleSelectProject = useCallback(
+    (project) => {
+      navigate(`/editor/${project.roomId}`)
+      setIsProjectSidebarOpen(false)
+    },
+    [navigate]
+  )
 
   return (
     <main className="flex min-h-screen flex-col bg-base text-copy-primary">
@@ -36,6 +43,7 @@ function EditorShell({ pathname, navigate }) {
         onCreateProject={projectActions.openCreateDialog}
         onDeleteProject={projectActions.openDeleteDialog}
         onRenameProject={projectActions.openRenameDialog}
+        onSelectProject={handleSelectProject}
         activeProjectId={activeWorkspaceId}
         projects={projectActions.ownedProjects}
       />
