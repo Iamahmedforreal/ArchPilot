@@ -1,6 +1,8 @@
+import { useMemo, useRef, useState } from "react"
 import { MoreHorizontal, PanelLeft, Plus, Search, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
 function ProjectSidebar({
@@ -11,9 +13,21 @@ function ProjectSidebar({
   onRenameProject,
   activeProjectId,
   projects = [],
-  sharedProjects = [],
   className,
 }) {
+  const [searchQuery, setSearchQuery] = useState("")
+  const searchInputRef = useRef(null)
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const filteredProjects = useMemo(() => {
+    if (!normalizedSearchQuery) {
+      return projects
+    }
+
+    return projects.filter((project) =>
+      project.name.toLowerCase().includes(normalizedSearchQuery)
+    )
+  }, [normalizedSearchQuery, projects])
+
   function renderProject(project) {
     const isActive =
       activeProjectId === project.roomId || activeProjectId === project.id
@@ -93,6 +107,7 @@ function ProjectSidebar({
               variant="ghost"
               size="icon-sm"
               aria-label="Search projects"
+              onClick={() => searchInputRef.current?.focus()}
               className="text-copy-muted hover:bg-subtle hover:text-copy-primary"
             >
               <Search className="h-5 w-5" />
@@ -111,6 +126,18 @@ function ProjectSidebar({
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col px-2 pb-3">
+          <div className="relative mb-3 px-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-copy-muted" />
+            <Input
+              ref={searchInputRef}
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search projects"
+              className="h-10 rounded-xl border-surface-border bg-surface pl-9 pr-3 text-copy-primary placeholder:text-copy-muted focus-visible:border-brand focus-visible:ring-brand/20"
+            />
+          </div>
+
           <div className="mb-3 flex items-center justify-between px-1">
             <p className="text-sm font-semibold text-copy-muted">Recent Projects</p>
             <Button
@@ -127,11 +154,13 @@ function ProjectSidebar({
 
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="grid gap-1">
-              {projects.map(renderProject)}
-              {sharedProjects.map((project) =>
-                renderProject({ ...project, owned: false })
-              )}
+              {filteredProjects.map(renderProject)}
             </div>
+            {filteredProjects.length === 0 && (
+              <p className="px-3 py-6 text-sm text-copy-muted">
+                No projects found.
+              </p>
+            )}
           </div>
         </div>
 

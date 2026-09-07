@@ -38,7 +38,6 @@ function EditorShell({ pathname, navigate }) {
         onRenameProject={projectActions.openRenameDialog}
         activeProjectId={activeWorkspaceId}
         projects={projectActions.ownedProjects}
-        sharedProjects={projectActions.sharedProjects}
       />
       <section className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-dotted px-6 text-center">
         <div className="max-w-md">
