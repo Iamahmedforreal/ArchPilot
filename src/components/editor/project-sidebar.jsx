@@ -1,7 +1,8 @@
-import { MoreHorizontal, PanelLeftClose, Plus, Trash2 } from "lucide-react"
+import { useMemo, useRef, useState } from "react"
+import { MoreHorizontal, PanelLeft, Plus, Search, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
 function ProjectSidebar({
@@ -10,17 +11,80 @@ function ProjectSidebar({
   onCreateProject,
   onDeleteProject,
   onRenameProject,
+  onSelectProject,
+  activeProjectId,
   projects = [],
-  sharedProjects = [],
   className,
 }) {
+  const [searchQuery, setSearchQuery] = useState("")
+  const searchInputRef = useRef(null)
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase()
+  const filteredProjects = useMemo(() => {
+    if (!normalizedSearchQuery) {
+      return projects
+    }
+
+    return projects.filter((project) =>
+      project.name.toLowerCase().includes(normalizedSearchQuery)
+    )
+  }, [normalizedSearchQuery, projects])
+
+  function renderProject(project) {
+    const isActive =
+      activeProjectId === project.roomId || activeProjectId === project.id
+
+    return (
+      <div
+        key={project.id}
+        className={cn(
+          "group flex min-h-11 items-center justify-between gap-2 rounded-xl px-3 text-left transition-colors",
+          isActive
+            ? "bg-subtle text-copy-primary"
+            : "text-copy-secondary hover:bg-elevated hover:text-copy-primary"
+        )}
+      >
+        <button
+          type="button"
+          className="min-w-0 flex-1 truncate py-2.5 text-left text-[15px] font-medium leading-5"
+          onClick={() => onSelectProject(project)}
+        >
+          {project.name}
+        </button>
+        {project.owned && (
+          <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label={`Rename ${project.name}`}
+              onClick={() => onRenameProject(project)}
+              className="text-copy-muted hover:bg-subtle hover:text-copy-primary"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              aria-label={`Delete ${project.name}`}
+              onClick={() => onDeleteProject(project)}
+              className="text-copy-muted hover:bg-subtle hover:text-state-error"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <>
       {isOpen && (
         <button
           type="button"
           aria-label="Close project sidebar"
-          className="fixed inset-0 top-14 z-30 bg-background/60 backdrop-blur-sm md:hidden"
+          className="fixed inset-0 z-30 bg-background/60 md:top-14 md:hidden"
           onClick={onClose}
         />
       )}
@@ -29,105 +93,85 @@ function ProjectSidebar({
         aria-hidden={!isOpen}
         inert={isOpen ? undefined : ""}
         className={cn(
-          "fixed left-0 top-14 bottom-0 z-40 flex w-80 max-w-[calc(100vw-1rem)] flex-col border-r border-surface-border bg-sidebar text-sidebar-foreground shadow-2xl backdrop-blur-xl transition-transform duration-200 ease-out",
+          "fixed left-0 top-0 bottom-0 z-40 flex w-84 max-w-[calc(100vw-0.75rem)] flex-col border-r border-surface-border bg-base text-sidebar-foreground shadow-2xl transition-transform duration-200 ease-out md:top-14",
           isOpen ? "translate-x-0" : "-translate-x-full",
           className
         )}
       >
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-surface-border px-4">
-          <h2 className="text-sm font-medium text-copy-primary">Projects</h2>
+        <div className="flex h-16 shrink-0 items-center justify-between px-3">
+          <h2 className="text-xl font-semibold tracking-tight text-copy-primary">
+            ArchPilot
+          </h2>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Search projects"
+              onClick={() => searchInputRef.current?.focus()}
+              className="text-copy-muted hover:bg-subtle hover:text-copy-primary"
+            >
+              <Search className="h-5 w-5" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="New project"
+              onClick={onCreateProject}
+              className="text-copy-muted hover:bg-subtle hover:text-copy-primary"
+            >
+              <Plus className="h-5 w-5" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col px-2 pb-3">
+          <div className="relative mb-3 px-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-copy-muted" />
+            <Input
+              ref={searchInputRef}
+              type="search"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search projects"
+              className="h-10 rounded-xl border-surface-border bg-surface pl-9 pr-3 text-copy-primary placeholder:text-copy-muted focus-visible:border-brand focus-visible:ring-brand/20"
+            />
+          </div>
+
+          <div className="mb-3 flex items-center justify-between px-1">
+            <p className="text-sm font-semibold text-copy-muted">Recent Projects</p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Close project sidebar"
+              onClick={onClose}
+              className="text-copy-muted hover:bg-subtle hover:text-copy-primary md:hidden"
+            >
+              <PanelLeft className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="grid gap-1">
+              {filteredProjects.map(renderProject)}
+            </div>
+            {filteredProjects.length === 0 && (
+              <p className="px-3 py-6 text-sm text-copy-muted">
+                No projects found.
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="shrink-0 p-2">
           <Button
             type="button"
             variant="ghost"
-            size="icon-sm"
-            aria-label="Close project sidebar"
-            onClick={onClose}
-            className="text-copy-muted hover:bg-subtle hover:text-copy-primary"
+            className="h-11 w-full justify-start gap-2 rounded-xl px-3 text-copy-secondary hover:bg-elevated hover:text-copy-primary"
+            onClick={onCreateProject}
           >
-            <PanelLeftClose className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <Tabs defaultValue="my-projects" className="min-h-0 flex-1 gap-4 p-4">
-          <TabsList
-            className={cn(
-              "grid w-full bg-elevated text-copy-muted",
-              sharedProjects.length > 0 ? "grid-cols-2" : "grid-cols-1"
-            )}
-          >
-            <TabsTrigger value="my-projects">My Projects</TabsTrigger>
-            {sharedProjects.length > 0 && (
-              <TabsTrigger value="shared-projects">Shared</TabsTrigger>
-            )}
-          </TabsList>
-          <TabsContent value="my-projects" className="min-h-0">
-            <div className="grid gap-2">
-              {projects.map((project) => (
-                <div
-                  key={project.id}
-                  className="group flex items-center justify-between gap-3 rounded-xl border border-surface-border bg-elevated/60 px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm text-copy-primary">
-                      {project.name}
-                    </p>
-                    <p className="truncate font-mono text-xs text-copy-muted">
-                      /{project.slug}
-                    </p>
-                  </div>
-                  {project.owned && (
-                    <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={`Rename ${project.name}`}
-                        onClick={() => onRenameProject(project)}
-                        className="text-copy-muted hover:bg-subtle hover:text-copy-primary"
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label={`Delete ${project.name}`}
-                        onClick={() => onDeleteProject(project)}
-                        className="text-copy-muted hover:bg-subtle hover:text-state-error"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </TabsContent>
-          {sharedProjects.length > 0 && (
-            <TabsContent value="shared-projects" className="min-h-0">
-              <div className="grid gap-2">
-                {sharedProjects.map((project) => (
-                  <div
-                    key={project.id}
-                    className="group flex items-center justify-between gap-3 rounded-xl border border-surface-border bg-elevated/60 px-3 py-2"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm text-copy-primary">
-                        {project.name}
-                      </p>
-                      <p className="truncate font-mono text-xs text-copy-muted">
-                        /{project.slug}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </TabsContent>
-          )}
-        </Tabs>
-
-        <div className="shrink-0 border-t border-surface-border p-4">
-          <Button type="button" className="w-full gap-2" onClick={onCreateProject}>
             <Plus className="h-4 w-4" />
             New Project
           </Button>
