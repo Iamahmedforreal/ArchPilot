@@ -158,7 +158,7 @@ function EditorShell({ pathname, navigate }) {
       <section className="relative flex min-h-0 flex-1 overflow-hidden bg-base">
         <EditorCanvas />
         {isAiSidebarOpen && (
-          <aside className="absolute right-0 top-0 bottom-0 z-20 hidden w-80 border-l border-surface-border bg-surface p-4 text-copy-primary shadow-2xl lg:flex lg:flex-col">
+          <aside className="absolute right-0 top-0 bottom-0 z-20 flex w-full max-w-[min(100vw,22rem)] flex-col border-l border-surface-border bg-surface p-4 text-copy-primary shadow-2xl sm:max-w-80">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Sparkles className="h-4 w-4 text-brand" />
               AI sidebar
