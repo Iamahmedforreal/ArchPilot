@@ -4,6 +4,7 @@ import { Plus, Sparkles } from "lucide-react"
 
 import { AuthPage } from "@/components/auth/auth-page"
 import { AccessDenied } from "@/components/editor/access-denied"
+import { EditorCanvas } from "@/components/editor/editor-canvas"
 import { EditorNavbar } from "@/components/editor/editor-navbar"
 import { ProjectDialogs } from "@/components/editor/project-dialogs"
 import { ProjectSidebar } from "@/components/editor/project-sidebar"
@@ -155,16 +156,7 @@ function EditorShell({ pathname, navigate }) {
 
     return (
       <section className="flex min-h-0 flex-1 overflow-hidden bg-base">
-        <div className="flex min-w-0 flex-1 items-center justify-center bg-canvas bg-dotted px-6 text-center">
-          <div className="max-w-sm">
-            <h1 className="text-2xl font-semibold tracking-tight text-copy-primary">
-              Canvas workspace
-            </h1>
-            <p className="mt-3 text-sm leading-6 text-copy-muted">
-              Canvas logic will be added here next.
-            </p>
-          </div>
-        </div>
+        <EditorCanvas />
         {isAiSidebarOpen && (
           <aside className="hidden w-80 shrink-0 border-l border-surface-border bg-surface p-4 text-copy-primary lg:flex lg:flex-col">
             <div className="flex items-center gap-2 text-sm font-semibold">
