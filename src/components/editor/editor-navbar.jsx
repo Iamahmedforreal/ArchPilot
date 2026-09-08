@@ -15,7 +15,7 @@ function EditorNavbar({
   return (
     <header
       className={cn(
-        "relative flex h-14 shrink-0 items-center border-b border-surface-border bg-surface px-3 text-copy-primary",
+        "relative flex h-14 shrink-0 items-center border-b border-surface-border/70 bg-canvas bg-dotted px-3 text-copy-primary",
         className
       )}
     >
@@ -49,7 +49,7 @@ function EditorNavbar({
           aria-label={isAiSidebarOpen ? "Close AI sidebar" : "Open AI sidebar"}
           aria-pressed={isAiSidebarOpen}
           onClick={onToggleAiSidebar}
-          className="hidden text-copy-secondary hover:bg-subtle hover:text-brand lg:inline-flex"
+          className="text-copy-secondary hover:bg-subtle hover:text-brand"
         >
           <Sparkles className="h-5 w-5" />
         </Button>
