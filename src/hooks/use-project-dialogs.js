@@ -13,12 +13,6 @@ const mockProjects = [
     slug: "payments-platform",
     owned: true,
   },
-  {
-    id: "shared-observability",
-    name: "Shared Observability",
-    slug: "shared-observability",
-    owned: false,
-  },
 ]
 
 function createSlug(value) {
