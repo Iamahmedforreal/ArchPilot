@@ -25,6 +25,7 @@ function EditorShell({ pathname, navigate }) {
   const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(true)
   const [currentProject, setCurrentProject] = useState(null)
   const [projectAccessState, setProjectAccessState] = useState("idle")
+  const [projectRequestVersion, setProjectRequestVersion] = useState(0)
   const activeWorkspaceId = pathname.startsWith("/editor/")
     ? pathname.replace("/editor/", "")
     : null
@@ -41,6 +42,9 @@ function EditorShell({ pathname, navigate }) {
     },
     [navigate]
   )
+  const retryProjectRequest = useCallback(() => {
+    setProjectRequestVersion((version) => version + 1)
+  }, [])
 
   useEffect(() => {
     let ignore = false
@@ -79,7 +83,7 @@ function EditorShell({ pathname, navigate }) {
         console.error(error)
         if (!ignore) {
           setCurrentProject(null)
-          setProjectAccessState("denied")
+          setProjectAccessState("error")
         }
       }
     }
@@ -89,7 +93,7 @@ function EditorShell({ pathname, navigate }) {
     return () => {
       ignore = true
     }
-  }, [activeWorkspaceId, getToken])
+  }, [activeWorkspaceId, getToken, projectRequestVersion])
 
   function renderWorkspaceContent() {
     if (!activeWorkspaceId) {
@@ -125,6 +129,28 @@ function EditorShell({ pathname, navigate }) {
 
     if (projectAccessState === "denied") {
       return <AccessDenied onBackToEditor={() => navigate("/editor")} />
+    }
+
+    if (projectAccessState === "error") {
+      return (
+        <section className="flex min-h-0 flex-1 items-center justify-center bg-dotted px-6 text-center">
+          <div className="max-w-sm">
+            <h1 className="text-2xl font-semibold tracking-tight text-copy-primary">
+              Could not load workspace
+            </h1>
+            <p className="mt-3 text-sm leading-6 text-copy-muted">
+              The project request failed. Check the backend connection and try again.
+            </p>
+            <Button
+              type="button"
+              className="mt-6"
+              onClick={retryProjectRequest}
+            >
+              Retry
+            </Button>
+          </div>
+        </section>
+      )
     }
 
     return (

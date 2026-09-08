@@ -49,7 +49,7 @@ function EditorNavbar({
           aria-label={isAiSidebarOpen ? "Close AI sidebar" : "Open AI sidebar"}
           aria-pressed={isAiSidebarOpen}
           onClick={onToggleAiSidebar}
-          className="text-copy-secondary hover:bg-subtle hover:text-brand"
+          className="hidden text-copy-secondary hover:bg-subtle hover:text-brand lg:inline-flex"
         >
           <Sparkles className="h-5 w-5" />
         </Button>
