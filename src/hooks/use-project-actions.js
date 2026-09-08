@@ -125,7 +125,6 @@ function useProjectActions(activeWorkspaceId, navigate) {
   const [projectName, setProjectName] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [ownedProjects, setOwnedProjects] = useState([])
-  const [sharedProjects] = useState([])
   const ownedProjectsRef = useRef(ownedProjects)
 
   useEffect(() => {
@@ -253,7 +252,6 @@ function useProjectActions(activeWorkspaceId, navigate) {
     ownedProjects,
     projectName,
     setProjectName,
-    sharedProjects,
     closeDialog,
     openCreateDialog,
     openDeleteDialog,

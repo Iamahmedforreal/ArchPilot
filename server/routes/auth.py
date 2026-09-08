@@ -3,11 +3,12 @@ from clerk_backend_api.security.types import AuthenticateRequestOptions
 from fastapi import HTTPException, Request, status
 
 from utils.utils import settings
+from lib.project_access import ClerkIdentity
 
 
-async def get_current_user_id(
+async def get_current_identity(
     request: Request,
-) -> str:
+) -> ClerkIdentity:
     authorization = request.headers.get("Authorization")
     session_cookie = request.cookies.get("__session")
     if not authorization and not session_cookie:
@@ -48,4 +49,11 @@ async def get_current_user_id(
             detail="Unauthorized",
         )
 
-    return user_id
+    return ClerkIdentity(user_id=user_id)
+
+
+async def get_current_user_id(
+    request: Request,
+) -> str:
+    identity = await get_current_identity(request)
+    return identity.user_id

@@ -1,10 +1,11 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from lib.project_access import ClerkIdentity, get_project_with_access
 from schema.crud_schema import ProjectCreateRequest, ProjectRenameRequest, ProjectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from model.db import get_db
-from routes.auth import get_current_user_id
+from routes.auth import get_current_identity, get_current_user_id
 from service.project_service import (
     ProjectForbiddenError,
     ProjectNotFoundError,
@@ -12,6 +13,7 @@ from service.project_service import (
     delete_project,
     list_projects,
     rename_project,
+    serialize_project,
 )
 
 
@@ -35,6 +37,24 @@ async def post_project(
     session: AsyncSession = Depends(get_db),
 ) -> dict:
     return await create_project(session, owner_id, payload.name if payload else None)
+
+
+@router.get("/{project_id}", response_model=ProjectResponse)
+async def get_project(
+    project_id: int,
+    response: Response,
+    identity: ClerkIdentity = Depends(get_current_identity),
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    project = await get_project_with_access(session, identity, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    response.headers["Cache-Control"] = "no-store"
+    return serialize_project(project)
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)

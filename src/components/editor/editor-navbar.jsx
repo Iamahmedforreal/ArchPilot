@@ -1,13 +1,15 @@
 import { UserButton } from "@clerk/react"
-import { PanelLeft } from "lucide-react"
+import { PanelLeft, Sparkles } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 function EditorNavbar({
   isSidebarOpen = false,
+  isAiSidebarOpen = false,
   onToggleSidebar,
-  centerContent = null,
+  onToggleAiSidebar,
+  projectName = null,
   className,
 }) {
   return (
@@ -31,11 +33,26 @@ function EditorNavbar({
         </Button>
       </div>
 
-      <div className="flex min-w-0 flex-1 items-center justify-center">
-        {centerContent}
+      <div className="flex min-w-0 flex-1 items-center justify-center px-3">
+        {projectName && (
+          <p className="truncate text-sm font-semibold text-copy-primary">
+            {projectName}
+          </p>
+        )}
       </div>
 
-      <div className="flex min-w-0 flex-1 items-center justify-end">
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={isAiSidebarOpen ? "Close AI sidebar" : "Open AI sidebar"}
+          aria-pressed={isAiSidebarOpen}
+          onClick={onToggleAiSidebar}
+          className="text-copy-secondary hover:bg-subtle hover:text-brand"
+        >
+          <Sparkles className="h-5 w-5" />
+        </Button>
         <UserButton />
       </div>
     </header>

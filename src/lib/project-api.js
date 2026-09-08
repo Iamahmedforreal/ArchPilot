@@ -28,6 +28,19 @@ async function fetchProjects(token) {
   return parseProjectResponse(response)
 }
 
+async function fetchProject(token, projectId) {
+  const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}`, {
+    cache: "no-store",
+    headers: getProjectHeaders(token),
+  })
+
+  if (response.status === 404 || response.status === 403) {
+    return null
+  }
+
+  return parseProjectResponse(response)
+}
+
 async function createProject(token, name) {
   const response = await fetch(`${API_BASE_URL}/api/projects`, {
     method: "POST",
@@ -57,4 +70,4 @@ async function deleteProject(token, projectId) {
   return parseProjectResponse(response)
 }
 
-export { createProject, deleteProject, fetchProjects, renameProject }
+export { createProject, deleteProject, fetchProject, fetchProjects, renameProject }
