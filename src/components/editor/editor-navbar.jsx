@@ -15,11 +15,11 @@ function EditorNavbar({
   return (
     <header
       className={cn(
-        "flex h-14 shrink-0 items-center border-b border-surface-border bg-surface px-3 text-copy-primary",
+        "relative flex h-14 shrink-0 items-center border-b border-surface-border bg-surface px-3 text-copy-primary",
         className
       )}
     >
-      <div className="flex min-w-0 flex-1 items-center justify-start">
+      <div className="relative z-10 flex min-w-0 flex-1 items-center justify-start">
         <Button
           type="button"
           variant="ghost"
@@ -33,7 +33,7 @@ function EditorNavbar({
         </Button>
       </div>
 
-      <div className="flex min-w-0 flex-1 items-center justify-center px-3">
+      <div className="pointer-events-none absolute inset-x-16 top-1/2 flex -translate-y-1/2 items-center justify-center px-3">
         {projectName && (
           <p className="truncate text-sm font-semibold text-copy-primary">
             {projectName}
@@ -41,7 +41,7 @@ function EditorNavbar({
         )}
       </div>
 
-      <div className="flex min-w-0 flex-1 items-center justify-end gap-1">
+      <div className="relative z-10 flex min-w-0 flex-1 items-center justify-end gap-1">
         <Button
           type="button"
           variant="ghost"

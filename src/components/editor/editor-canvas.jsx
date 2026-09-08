@@ -4,6 +4,8 @@ import {
   Database,
   Diamond,
   Hexagon,
+  Minus,
+  Plus,
   RectangleHorizontal,
   Rows2,
 } from "lucide-react"
@@ -118,10 +120,39 @@ function ShapePanel() {
   )
 }
 
+function ZoomControls({ onZoomIn, onZoomOut }) {
+  return (
+    <div className="absolute bottom-5 left-5 z-10 flex overflow-hidden rounded-xl border border-surface-border bg-copy-primary shadow-2xl">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label="Zoom in"
+        title="Zoom in"
+        onClick={onZoomIn}
+        className="rounded-none border-r border-base/20 bg-copy-primary text-base hover:bg-copy-secondary hover:text-base"
+      >
+        <Plus className="h-5 w-5" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label="Zoom out"
+        title="Zoom out"
+        onClick={onZoomOut}
+        className="rounded-none bg-copy-primary text-base hover:bg-copy-secondary hover:text-base"
+      >
+        <Minus className="h-5 w-5" />
+      </Button>
+    </div>
+  )
+}
+
 function CanvasSurface() {
   const nodeCounterRef = useRef(0)
   const [nodes, setNodes, onNodesChange] = useNodesState([])
-  const { screenToFlowPosition } = useReactFlow()
+  const { screenToFlowPosition, zoomIn, zoomOut } = useReactFlow()
 
   const handleDragOver = useCallback((event) => {
     if (event.dataTransfer.types.includes(SHAPE_DRAG_TYPE)) {
@@ -189,6 +220,11 @@ function CanvasSurface() {
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         proOptions={{ hideAttribution: true }}
+        minZoom={0.25}
+        maxZoom={2.5}
+        zoomOnPinch
+        zoomOnScroll
+        panOnDrag
         fitView
       />
       {nodes.length === 0 && (
@@ -203,6 +239,10 @@ function CanvasSurface() {
           </div>
         </div>
       )}
+      <ZoomControls
+        onZoomIn={() => zoomIn({ duration: 120 })}
+        onZoomOut={() => zoomOut({ duration: 120 })}
+      />
       <ShapePanel />
     </div>
   )

@@ -93,7 +93,7 @@ function ProjectSidebar({
         aria-hidden={!isOpen}
         inert={isOpen ? undefined : ""}
         className={cn(
-          "fixed left-0 top-0 bottom-0 z-40 flex w-84 max-w-[calc(100vw-0.75rem)] flex-col border-r border-surface-border bg-base text-sidebar-foreground shadow-2xl transition-transform duration-200 ease-out md:top-14",
+          "fixed left-0 top-0 bottom-0 z-40 flex w-[290px] max-w-[calc(100vw-0.75rem)] flex-col border-r border-surface-border bg-base text-sidebar-foreground shadow-2xl transition-transform duration-200 ease-out md:top-14",
           isOpen ? "translate-x-0" : "-translate-x-full",
           className
         )}
