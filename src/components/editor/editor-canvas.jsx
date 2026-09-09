@@ -802,16 +802,11 @@ function CanvasSurface({ isTemplatesModalOpen, onTemplatesModalOpenChange }) {
         markerEnd: edge.markerEnd ? { ...edge.markerEnd } : undefined,
       }))
 
-      setNodes([])
-      setEdges([])
+      setNodes(templateNodes)
+      setEdges(templateEdges)
 
       window.requestAnimationFrame(() => {
-        setNodes(templateNodes)
-        setEdges(templateEdges)
-
-        window.requestAnimationFrame(() => {
-          fitView({ padding: 0.24, duration: 180 })
-        })
+        fitView({ padding: 0.24, duration: 180 })
       })
     },
     [fitView, setEdges, setNodes]
