@@ -27,6 +27,7 @@ function EditorShell({ pathname, navigate }) {
   const [currentProject, setCurrentProject] = useState(null)
   const [projectAccessState, setProjectAccessState] = useState("idle")
   const [projectRequestVersion, setProjectRequestVersion] = useState(0)
+  const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false)
   const activeWorkspaceId = pathname.startsWith("/editor/")
     ? pathname.replace("/editor/", "")
     : null
@@ -156,7 +157,10 @@ function EditorShell({ pathname, navigate }) {
 
     return (
       <section className="relative flex min-h-0 flex-1 overflow-hidden bg-base">
-        <EditorCanvas />
+        <EditorCanvas
+          isTemplatesModalOpen={isTemplatesModalOpen}
+          onTemplatesModalOpenChange={setIsTemplatesModalOpen}
+        />
         {isAiSidebarOpen && (
           <aside className="absolute right-0 top-0 bottom-0 z-20 flex w-full max-w-[min(100vw,22rem)] flex-col border-l border-surface-border bg-surface p-4 text-copy-primary shadow-2xl sm:max-w-80">
             <div className="flex items-center gap-2 text-sm font-semibold">
@@ -179,6 +183,9 @@ function EditorShell({ pathname, navigate }) {
         isAiSidebarOpen={isAiSidebarOpen}
         onToggleSidebar={() => setIsProjectSidebarOpen((isOpen) => !isOpen)}
         onToggleAiSidebar={() => setIsAiSidebarOpen((isOpen) => !isOpen)}
+        onOpenTemplates={
+          activeWorkspaceId ? () => setIsTemplatesModalOpen(true) : undefined
+        }
         projectName={activeProject?.name}
       />
       <ProjectSidebar

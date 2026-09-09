@@ -23,6 +23,7 @@ import {
 } from "@xyflow/react"
 
 import { Button } from "@/components/ui/button"
+import { StarterTemplatesModal } from "@/components/editor/starter-templates-modal"
 import { cn } from "@/lib/utils"
 
 const SHAPE_DRAG_TYPE = "application/archpilot-shape"
@@ -565,12 +566,12 @@ function ZoomControls({ onZoomIn, onZoomOut }) {
   )
 }
 
-function CanvasSurface() {
+function CanvasSurface({ isTemplatesModalOpen, onTemplatesModalOpenChange }) {
   const nodeCounterRef = useRef(0)
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
   const [dragPreview, setDragPreview] = useState(null)
-  const { screenToFlowPosition, zoomIn, zoomOut } = useReactFlow()
+  const { fitView, screenToFlowPosition, zoomIn, zoomOut } = useReactFlow()
   const historyRef = useRef({ past: [], future: [] })
   const lastSnapshotRef = useRef(null)
   const isApplyingHistoryRef = useRef(false)
@@ -785,6 +786,32 @@ function CanvasSurface() {
     [screenToFlowPosition, setNodes]
   )
 
+  const handleImportTemplate = useCallback(
+    (template) => {
+      const templateNodes = template.nodes.map((node) => ({
+        ...node,
+        position: { ...node.position },
+        data: {
+          ...node.data,
+          size: node.data.size ? { ...node.data.size } : undefined,
+        },
+      }))
+      const templateEdges = template.edges.map((edge) => ({
+        ...edge,
+        style: edge.style ? { ...edge.style } : undefined,
+        markerEnd: edge.markerEnd ? { ...edge.markerEnd } : undefined,
+      }))
+
+      setNodes(templateNodes)
+      setEdges(templateEdges)
+
+      window.requestAnimationFrame(() => {
+        fitView({ padding: 0.24, duration: 180 })
+      })
+    },
+    [fitView, setEdges, setNodes]
+  )
+
   return (
     <div
       className={cn(
@@ -833,14 +860,22 @@ function CanvasSurface() {
         onPreviewEnd={handlePreviewEnd}
       />
       <ShapeDragPreview preview={dragPreview} />
+      <StarterTemplatesModal
+        open={isTemplatesModalOpen}
+        onOpenChange={onTemplatesModalOpenChange}
+        onImport={handleImportTemplate}
+      />
     </div>
   )
 }
 
-function EditorCanvas() {
+function EditorCanvas({ isTemplatesModalOpen = false, onTemplatesModalOpenChange }) {
   return (
     <ReactFlowProvider>
-      <CanvasSurface />
+      <CanvasSurface
+        isTemplatesModalOpen={isTemplatesModalOpen}
+        onTemplatesModalOpenChange={onTemplatesModalOpenChange}
+      />
     </ReactFlowProvider>
   )
 }
