@@ -1,5 +1,5 @@
 import { UserButton } from "@clerk/react"
-import { PanelLeft, Sparkles } from "lucide-react"
+import { LayoutTemplate, PanelLeft, Sparkles } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -9,6 +9,7 @@ function EditorNavbar({
   isAiSidebarOpen = false,
   onToggleSidebar,
   onToggleAiSidebar,
+  onOpenTemplates,
   projectName = null,
   className,
 }) {
@@ -42,6 +43,19 @@ function EditorNavbar({
       </div>
 
       <div className="relative z-10 flex min-w-0 flex-1 items-center justify-end gap-1">
+        {onOpenTemplates && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Open starter templates"
+            title="Starter templates"
+            onClick={onOpenTemplates}
+            className="text-copy-secondary hover:bg-subtle hover:text-brand"
+          >
+            <LayoutTemplate className="h-5 w-5" />
+          </Button>
+        )}
         <Button
           type="button"
           variant="ghost"
