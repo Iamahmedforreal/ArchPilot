@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react"
 import { RedirectToSignIn, useAuth } from "@clerk/react"
-import { Plus, Sparkles } from "lucide-react"
+import { Plus } from "lucide-react"
 
 import { AuthPage } from "@/components/auth/auth-page"
 import { AccessDenied } from "@/components/editor/access-denied"
+import { AiSidebar } from "@/components/editor/ai-sidebar"
 import { EditorCanvas } from "@/components/editor/editor-canvas"
 import { EditorNavbar } from "@/components/editor/editor-navbar"
 import { ProjectDialogs } from "@/components/editor/project-dialogs"
@@ -28,6 +29,7 @@ function EditorShell({ pathname, navigate }) {
   const [projectAccessState, setProjectAccessState] = useState("idle")
   const [projectRequestVersion, setProjectRequestVersion] = useState(0)
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false)
+  const [canvasSaveStatus, setCanvasSaveStatus] = useState("idle")
   const activeWorkspaceId = pathname.startsWith("/editor/")
     ? pathname.replace("/editor/", "")
     : null
@@ -158,20 +160,17 @@ function EditorShell({ pathname, navigate }) {
     return (
       <section className="relative flex min-h-0 flex-1 overflow-hidden bg-base">
         <EditorCanvas
+          key={activeWorkspaceId}
           isTemplatesModalOpen={isTemplatesModalOpen}
           onTemplatesModalOpenChange={setIsTemplatesModalOpen}
+          projectId={activeWorkspaceId}
+          getToken={getToken}
+          onSaveStatusChange={setCanvasSaveStatus}
         />
-        {isAiSidebarOpen && (
-          <aside className="absolute right-0 top-0 bottom-0 z-20 flex w-full max-w-[min(100vw,22rem)] flex-col border-l border-surface-border bg-surface p-4 text-copy-primary shadow-2xl sm:max-w-80">
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Sparkles className="h-4 w-4 text-brand" />
-              AI sidebar
-            </div>
-            <div className="mt-6 flex min-h-0 flex-1 items-center justify-center rounded-2xl border border-surface-border bg-base px-5 text-center text-sm leading-6 text-copy-muted">
-              Future AI chat will live here.
-            </div>
-          </aside>
-        )}
+        <AiSidebar
+          isOpen={isAiSidebarOpen}
+          onClose={() => setIsAiSidebarOpen(false)}
+        />
       </section>
     )
   }
@@ -187,6 +186,7 @@ function EditorShell({ pathname, navigate }) {
           activeWorkspaceId ? () => setIsTemplatesModalOpen(true) : undefined
         }
         projectName={activeProject?.name}
+        saveStatus={canvasSaveStatus}
       />
       <ProjectSidebar
         isOpen={isProjectSidebarOpen}

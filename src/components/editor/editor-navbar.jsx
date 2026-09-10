@@ -1,5 +1,5 @@
 import { UserButton } from "@clerk/react"
-import { LayoutTemplate, PanelLeft, Sparkles } from "lucide-react"
+import { Check, CircleAlert, CloudUpload, LayoutTemplate, PanelLeft, Sparkles } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -11,8 +11,16 @@ function EditorNavbar({
   onToggleAiSidebar,
   onOpenTemplates,
   projectName = null,
+  saveStatus = "idle",
   className,
 }) {
+  const saveStatusDetails = {
+    saving: { Icon: CloudUpload, label: "Saving canvas" },
+    saved: { Icon: Check, label: "Canvas saved" },
+    error: { Icon: CircleAlert, label: "Canvas save failed" },
+  }
+  const currentSaveStatus = saveStatusDetails[saveStatus]
+
   return (
     <header
       className={cn(
@@ -43,6 +51,23 @@ function EditorNavbar({
       </div>
 
       <div className="relative z-10 flex min-w-0 flex-1 items-center justify-end gap-1">
+        {currentSaveStatus && (
+          <span
+            className={cn(
+              "inline-flex h-8 items-center gap-1.5 rounded-xl px-2 text-xs font-medium",
+              saveStatus === "error"
+                ? "text-brand"
+                : "text-copy-muted"
+            )}
+            aria-live="polite"
+            title={currentSaveStatus.label}
+          >
+            <currentSaveStatus.Icon
+              className={cn("h-4 w-4", saveStatus === "saving" && "animate-pulse")}
+            />
+            <span className="hidden lg:inline">{currentSaveStatus.label}</span>
+          </span>
+        )}
         {onOpenTemplates && (
           <Button
             type="button"

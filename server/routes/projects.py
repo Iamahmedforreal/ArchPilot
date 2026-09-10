@@ -2,7 +2,14 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from lib.project_access import ClerkIdentity, get_project_with_access
-from schema.crud_schema import ProjectCreateRequest, ProjectRenameRequest, ProjectResponse
+from schema.crud_schema import (
+    CanvasSaveResponse,
+    CanvasStateRequest,
+    CanvasStateResponse,
+    ProjectCreateRequest,
+    ProjectRenameRequest,
+    ProjectResponse,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from model.db import get_db
 from routes.auth import get_current_identity, get_current_user_id
@@ -14,6 +21,12 @@ from service.project_service import (
     list_projects,
     rename_project,
     serialize_project,
+)
+from service.canvas_service import (
+    CanvasNotFoundError,
+    CanvasStorageError,
+    load_project_canvas,
+    save_project_canvas,
 )
 
 
@@ -55,6 +68,67 @@ async def get_project(
 
     response.headers["Cache-Control"] = "no-store"
     return serialize_project(project)
+
+
+@router.get("/{project_id}/canvas", response_model=CanvasStateResponse)
+async def get_project_canvas(
+    project_id: int,
+    identity: ClerkIdentity = Depends(get_current_identity),
+    session: AsyncSession = Depends(get_db),
+) -> dict | Response:
+    project = await get_project_with_access(session, identity, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    try:
+        canvas_state = await load_project_canvas(project)
+    except CanvasNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Saved canvas not found",
+        ) from exc
+    except CanvasStorageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Canvas storage is unavailable",
+        ) from exc
+
+    if canvas_state is None:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    return canvas_state
+
+
+@router.put("/{project_id}/canvas", response_model=CanvasSaveResponse)
+async def put_project_canvas(
+    project_id: int,
+    payload: CanvasStateRequest,
+    identity: ClerkIdentity = Depends(get_current_identity),
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    project = await get_project_with_access(session, identity, project_id)
+    if project is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+        )
+
+    try:
+        canvas_json_path = await save_project_canvas(
+            session,
+            project,
+            payload.model_dump(mode="json"),
+        )
+    except CanvasStorageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Canvas storage is unavailable",
+        ) from exc
+
+    return {"canvasJsonPath": canvas_json_path}
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
