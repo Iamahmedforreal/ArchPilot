@@ -24,6 +24,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { StarterTemplatesModal } from "@/components/editor/starter-templates-modal"
+import { useCanvasAutosave } from "@/hooks/use-canvas-autosave"
 import { cn } from "@/lib/utils"
 
 const SHAPE_DRAG_TYPE = "application/archpilot-shape"
@@ -566,7 +567,13 @@ function ZoomControls({ onZoomIn, onZoomOut }) {
   )
 }
 
-function CanvasSurface({ isTemplatesModalOpen, onTemplatesModalOpenChange }) {
+function CanvasSurface({
+  isTemplatesModalOpen,
+  onTemplatesModalOpenChange,
+  projectId,
+  getToken,
+  onSaveStatusChange,
+}) {
   const nodeCounterRef = useRef(0)
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
@@ -575,6 +582,16 @@ function CanvasSurface({ isTemplatesModalOpen, onTemplatesModalOpenChange }) {
   const historyRef = useRef({ past: [], future: [] })
   const lastSnapshotRef = useRef(null)
   const isApplyingHistoryRef = useRef(false)
+
+  useCanvasAutosave({
+    projectId,
+    nodes,
+    edges,
+    setNodes,
+    setEdges,
+    getToken,
+    onStatusChange: onSaveStatusChange,
+  })
 
   useEffect(() => {
     const snapshot = cloneCanvasSnapshot(nodes, edges)
@@ -869,12 +886,21 @@ function CanvasSurface({ isTemplatesModalOpen, onTemplatesModalOpenChange }) {
   )
 }
 
-function EditorCanvas({ isTemplatesModalOpen = false, onTemplatesModalOpenChange }) {
+function EditorCanvas({
+  isTemplatesModalOpen = false,
+  onTemplatesModalOpenChange,
+  projectId,
+  getToken,
+  onSaveStatusChange,
+}) {
   return (
     <ReactFlowProvider>
       <CanvasSurface
         isTemplatesModalOpen={isTemplatesModalOpen}
         onTemplatesModalOpenChange={onTemplatesModalOpenChange}
+        projectId={projectId}
+        getToken={getToken}
+        onSaveStatusChange={onSaveStatusChange}
       />
     </ReactFlowProvider>
   )

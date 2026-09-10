@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     clerk_secret_key: str | None = None
     clerk_jwt_key: str | None = None
     clerk_authorized_parties: str | None = None
+    blob_read_write_token: str | None = None
     
 
 

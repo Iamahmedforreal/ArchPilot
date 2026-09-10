@@ -9,7 +9,9 @@ function getProjectHeaders(token) {
 
 async function parseProjectResponse(response) {
   if (!response.ok) {
-    throw new Error(`Project API request failed with ${response.status}`)
+    const error = new Error(`Project API request failed with ${response.status}`)
+    error.status = response.status
+    throw error
   }
 
   if (response.status === 204) {
@@ -70,4 +72,35 @@ async function deleteProject(token, projectId) {
   return parseProjectResponse(response)
 }
 
-export { createProject, deleteProject, fetchProject, fetchProjects, renameProject }
+async function fetchCanvas(token, projectId) {
+  const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/canvas`, {
+    cache: "no-store",
+    headers: getProjectHeaders(token),
+  })
+
+  if (response.status === 204 || response.status === 404) {
+    return null
+  }
+
+  return parseProjectResponse(response)
+}
+
+async function saveCanvas(token, projectId, canvas, revision) {
+  const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/canvas`, {
+    method: "PUT",
+    headers: getProjectHeaders(token),
+    body: JSON.stringify({ ...canvas, revision }),
+  })
+
+  return parseProjectResponse(response)
+}
+
+export {
+  createProject,
+  deleteProject,
+  fetchCanvas,
+  fetchProject,
+  fetchProjects,
+  renameProject,
+  saveCanvas,
+}

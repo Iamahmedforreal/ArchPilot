@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel
 from datetime import datetime
 class ProjectCreateRequest(BaseModel):
@@ -17,3 +19,18 @@ class ProjectResponse(BaseModel):
     canvasJsonPath: str | None
     createdAt: datetime
     updatedAt: datetime
+
+
+class CanvasStateRequest(BaseModel):
+    nodes: list[dict[str, Any]]
+    edges: list[dict[str, Any]]
+    revision: str | None
+
+
+class CanvasStateResponse(CanvasStateRequest):
+    pass
+
+
+class CanvasSaveResponse(BaseModel):
+    canvasJsonPath: str
+    revision: str
