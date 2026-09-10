@@ -24,6 +24,7 @@ from service.project_service import (
 )
 from service.canvas_service import (
     CanvasNotFoundError,
+    CanvasRevisionConflictError,
     CanvasStorageError,
     load_project_canvas,
     save_project_canvas,
@@ -84,7 +85,7 @@ async def get_project_canvas(
         )
 
     try:
-        canvas_state = await load_project_canvas(project)
+        canvas_snapshot = await load_project_canvas(project)
     except CanvasNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -96,10 +97,11 @@ async def get_project_canvas(
             detail="Canvas storage is unavailable",
         ) from exc
 
-    if canvas_state is None:
+    if canvas_snapshot is None:
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    return canvas_state
+    canvas_state, revision = canvas_snapshot
+    return {**canvas_state, "revision": revision}
 
 
 @router.put("/{project_id}/canvas", response_model=CanvasSaveResponse)
@@ -117,18 +119,30 @@ async def put_project_canvas(
         )
 
     try:
-        canvas_json_path = await save_project_canvas(
+        canvas_json_path, revision = await save_project_canvas(
             session,
-            project,
-            payload.model_dump(mode="json"),
+            project.id,
+            identity.user_id,
+            payload.model_dump(mode="json", exclude={"revision"}),
+            payload.revision,
         )
+    except CanvasRevisionConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Canvas revision has changed",
+        ) from exc
+    except CanvasNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Saved canvas not found",
+        ) from exc
     except CanvasStorageError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Canvas storage is unavailable",
         ) from exc
 
-    return {"canvasJsonPath": canvas_json_path}
+    return {"canvasJsonPath": canvas_json_path, "revision": revision}
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)

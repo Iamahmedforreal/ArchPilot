@@ -33,6 +33,21 @@ function EditorShell({ pathname, navigate }) {
   const activeWorkspaceId = pathname.startsWith("/editor/")
     ? pathname.replace("/editor/", "")
     : null
+
+  useEffect(() => {
+    let isCurrentWorkspace = true
+
+    queueMicrotask(() => {
+      if (isCurrentWorkspace) {
+        setCanvasSaveStatus("idle")
+      }
+    })
+
+    return () => {
+      isCurrentWorkspace = false
+    }
+  }, [activeWorkspaceId])
+
   const projectActions = useProjectActions(activeWorkspaceId, navigate)
   const activeProject =
     projectActions.ownedProjects.find(

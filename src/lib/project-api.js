@@ -9,7 +9,9 @@ function getProjectHeaders(token) {
 
 async function parseProjectResponse(response) {
   if (!response.ok) {
-    throw new Error(`Project API request failed with ${response.status}`)
+    const error = new Error(`Project API request failed with ${response.status}`)
+    error.status = response.status
+    throw error
   }
 
   if (response.status === 204) {
@@ -83,11 +85,11 @@ async function fetchCanvas(token, projectId) {
   return parseProjectResponse(response)
 }
 
-async function saveCanvas(token, projectId, canvas) {
+async function saveCanvas(token, projectId, canvas, revision) {
   const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/canvas`, {
     method: "PUT",
     headers: getProjectHeaders(token),
-    body: JSON.stringify(canvas),
+    body: JSON.stringify({ ...canvas, revision }),
   })
 
   return parseProjectResponse(response)

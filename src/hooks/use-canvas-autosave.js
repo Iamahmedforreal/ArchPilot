@@ -23,6 +23,7 @@ function useCanvasAutosave({
 }) {
   const [isReady, setIsReady] = useState(false)
   const lastSavedCanvasRef = useRef(null)
+  const lastSavedRevisionRef = useRef(null)
   const currentCanvasRef = useRef({ nodes, edges })
   const saveRequestRef = useRef(0)
 
@@ -36,6 +37,7 @@ function useCanvasAutosave({
     async function loadCanvas() {
       setIsReady(false)
       lastSavedCanvasRef.current = null
+      lastSavedRevisionRef.current = null
 
       if (!projectId) {
         onStatusChange("idle")
@@ -74,23 +76,22 @@ function useCanvasAutosave({
             savedCanvas.nodes,
             savedCanvas.edges
           )
+          lastSavedRevisionRef.current = savedCanvas.revision
         }
 
         if (!cancelled && !savedCanvas) {
           lastSavedCanvasRef.current = serializeCanvas([], [])
+          lastSavedRevisionRef.current = null
         }
 
         if (!cancelled) {
           onStatusChange("idle")
+          setIsReady(true)
         }
       } catch (error) {
         if (!cancelled) {
           console.error(error)
           onStatusChange("error")
-        }
-      } finally {
-        if (!cancelled) {
-          setIsReady(true)
         }
       }
     }
@@ -123,15 +124,40 @@ function useCanvasAutosave({
           throw new Error("Missing project session token")
         }
 
-        await saveCanvas(token, projectId, JSON.parse(serializedCanvas))
+        const saveResult = await saveCanvas(
+          token,
+          projectId,
+          JSON.parse(serializedCanvas),
+          lastSavedRevisionRef.current
+        )
         if (requestId !== saveRequestRef.current) {
           return
         }
 
         lastSavedCanvasRef.current = serializedCanvas
+        lastSavedRevisionRef.current = saveResult.revision
         onStatusChange("saved")
       } catch (error) {
         if (requestId === saveRequestRef.current) {
+          if (error.status === 409) {
+            try {
+              const token = await getToken()
+              const savedCanvas = token
+                ? await fetchCanvas(token, projectId)
+                : null
+
+              if (savedCanvas) {
+                lastSavedCanvasRef.current = serializeCanvas(
+                  savedCanvas.nodes,
+                  savedCanvas.edges
+                )
+                lastSavedRevisionRef.current = savedCanvas.revision
+              }
+            } catch (refreshError) {
+              console.error(refreshError)
+            }
+          }
+
           console.error(error)
           onStatusChange("error")
         }

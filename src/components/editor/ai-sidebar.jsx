@@ -145,10 +145,12 @@ function SpecsTab() {
     <div className="flex h-full min-h-0 flex-1 flex-col gap-3 pt-1">
       <Button
         type="button"
+        disabled
+        aria-label="Generate spec unavailable"
         className="h-10 w-full gap-2 bg-brand text-sm text-white hover:bg-brand-hover"
       >
         <Sparkles className="h-4 w-4" />
-        Generate Spec
+        Generate Spec Unavailable
       </Button>
 
       <article className="rounded-xl border border-surface-border bg-elevated p-3">

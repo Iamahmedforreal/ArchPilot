@@ -24,6 +24,7 @@ class ProjectResponse(BaseModel):
 class CanvasStateRequest(BaseModel):
     nodes: list[dict[str, Any]]
     edges: list[dict[str, Any]]
+    revision: str | None
 
 
 class CanvasStateResponse(CanvasStateRequest):
@@ -32,3 +33,4 @@ class CanvasStateResponse(CanvasStateRequest):
 
 class CanvasSaveResponse(BaseModel):
     canvasJsonPath: str
+    revision: str
