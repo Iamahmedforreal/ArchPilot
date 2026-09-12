@@ -24,7 +24,7 @@ function EditorNavbar({
   return (
     <header
       className={cn(
-        "relative flex h-14 shrink-0 items-center border-b border-surface-border/70 bg-canvas bg-dotted px-3 text-copy-primary",
+        "relative flex h-12 shrink-0 items-center border-b border-surface-border/60 bg-canvas bg-dotted px-3 text-copy-primary",
         className
       )}
     >
@@ -36,7 +36,7 @@ function EditorNavbar({
           aria-label={isSidebarOpen ? "Close project sidebar" : "Open project sidebar"}
           aria-pressed={isSidebarOpen}
           onClick={onToggleSidebar}
-          className="text-copy-secondary hover:bg-subtle hover:text-copy-primary"
+          className="h-9 w-9 rounded-xl text-copy-secondary hover:bg-subtle hover:text-copy-primary"
         >
           <PanelLeft className="h-5 w-5" />
         </Button>
@@ -76,7 +76,7 @@ function EditorNavbar({
             aria-label="Open starter templates"
             title="Starter templates"
             onClick={onOpenTemplates}
-            className="text-copy-secondary hover:bg-subtle hover:text-brand"
+            className="h-9 w-9 rounded-xl text-copy-secondary hover:bg-subtle hover:text-brand"
           >
             <LayoutTemplate className="h-5 w-5" />
           </Button>
@@ -88,7 +88,7 @@ function EditorNavbar({
           aria-label={isAiSidebarOpen ? "Close AI sidebar" : "Open AI sidebar"}
           aria-pressed={isAiSidebarOpen}
           onClick={onToggleAiSidebar}
-          className="text-copy-secondary hover:bg-subtle hover:text-brand"
+          className="h-9 w-9 rounded-xl text-copy-secondary hover:bg-subtle hover:text-brand"
         >
           <Sparkles className="h-5 w-5" />
         </Button>
