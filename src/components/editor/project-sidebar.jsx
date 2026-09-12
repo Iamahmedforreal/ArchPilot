@@ -84,7 +84,7 @@ function ProjectSidebar({
         <button
           type="button"
           aria-label="Close project sidebar"
-          className="fixed inset-0 z-30 bg-background/60 md:top-14 md:hidden"
+          className="fixed inset-0 z-30 bg-background/60 md:top-12 md:hidden"
           onClick={onClose}
         />
       )}
@@ -93,15 +93,23 @@ function ProjectSidebar({
         aria-hidden={!isOpen}
         inert={isOpen ? undefined : ""}
         className={cn(
-          "fixed left-0 top-0 bottom-0 z-40 flex w-[240px] max-w-[calc(100vw-0.75rem)] flex-col border-r border-surface-border bg-base text-sidebar-foreground shadow-2xl transition-transform duration-200 ease-out md:top-14",
+          "fixed bottom-0 left-0 top-0 z-40 flex w-[240px] max-w-[calc(100vw-0.75rem)] flex-col border border-surface-border bg-base/95 p-3 text-sidebar-foreground shadow-2xl backdrop-blur-xl transition-transform duration-200 ease-out md:bottom-3 md:left-3 md:top-[3.75rem] md:rounded-[1.4rem]",
           isOpen ? "translate-x-0" : "-translate-x-full",
           className
         )}
       >
-        <div className="flex h-16 shrink-0 items-center justify-between px-3">
-          <h2 className="text-xl font-semibold tracking-tight text-copy-primary">
-            ArchPilot
-          </h2>
+        <div className="flex shrink-0 items-center gap-3 border-b border-surface-border pb-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-surface-border bg-elevated text-brand">
+            <PanelLeft className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-sm font-semibold text-copy-primary">
+              ArchPilot
+            </h2>
+            <p className="mt-0.5 text-[11px] text-copy-muted">
+              Projects
+            </p>
+          </div>
           <div className="flex items-center gap-1">
             <Button
               type="button"
@@ -126,8 +134,8 @@ function ProjectSidebar({
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-1 flex-col px-2 pb-3">
-          <div className="relative mb-3 px-1">
+        <div className="mt-3 flex min-h-0 flex-1 flex-col">
+          <div className="relative mb-3">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-copy-muted" />
             <Input
               ref={searchInputRef}
@@ -135,11 +143,11 @@ function ProjectSidebar({
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Search projects"
-              className="h-10 rounded-xl border-surface-border bg-surface pl-9 pr-3 text-copy-primary placeholder:text-copy-muted focus-visible:border-brand focus-visible:ring-brand/20"
+              className="h-10 rounded-xl border-surface-border bg-subtle pl-9 pr-3 text-copy-primary placeholder:text-copy-muted focus-visible:border-brand focus-visible:ring-brand/20"
             />
           </div>
 
-          <div className="mb-3 flex items-center justify-between px-1">
+          <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-semibold text-copy-muted">Recent Projects</p>
             <Button
               type="button"
@@ -153,7 +161,7 @@ function ProjectSidebar({
             </Button>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
             <div className="grid gap-1">
               {filteredProjects.map(renderProject)}
             </div>
@@ -165,7 +173,7 @@ function ProjectSidebar({
           </div>
         </div>
 
-        <div className="shrink-0 p-2">
+        <div className="shrink-0 border-t border-surface-border pt-3">
           <Button
             type="button"
             variant="ghost"

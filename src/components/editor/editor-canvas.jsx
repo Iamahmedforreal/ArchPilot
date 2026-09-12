@@ -1133,7 +1133,7 @@ function CanvasSurface({
   return (
     <div
       className={cn(
-        "relative min-h-0 flex-1 overflow-hidden bg-canvas bg-dotted",
+        "relative min-h-0 min-w-0 flex-1 overflow-hidden bg-canvas bg-dotted",
         "[&_.react-flow__attribution]:hidden"
       )}
       onDragOver={handleDragOver}

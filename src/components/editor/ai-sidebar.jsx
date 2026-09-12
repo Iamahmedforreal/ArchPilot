@@ -87,12 +87,12 @@ function AiArchitectTab() {
             <p className="mt-1 text-xs leading-5 text-copy-muted">
               Choose a starting point or ask your own question.
             </p>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-3 flex flex-wrap gap-2">
               {STARTER_PROMPTS.map((prompt) => (
                 <button
                   key={prompt}
                   type="button"
-                  className="rounded-xl border border-surface-border bg-elevated px-3 py-2 text-left text-xs font-medium leading-4 text-copy-secondary transition-colors hover:border-brand/60 hover:bg-accent-dim hover:text-brand"
+                  className="rounded-full border border-surface-border bg-elevated px-3 py-2 text-left text-xs font-medium leading-4 text-copy-secondary transition-colors hover:border-brand/60 hover:bg-accent-dim hover:text-brand"
                   onClick={() => submitMessage(prompt)}
                 >
                   {prompt}
@@ -120,7 +120,7 @@ function AiArchitectTab() {
             placeholder="Ask a question..."
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={handleKeyDown}
-            className="max-h-30 min-h-11 resize-none rounded-xl border border-transparent bg-subtle px-3 py-2.5 text-sm text-copy-primary shadow-none placeholder:text-copy-muted focus-visible:border-brand/60 focus-visible:ring-1 focus-visible:ring-brand/30"
+            className="max-h-28 min-h-10 resize-none rounded-xl border border-transparent bg-subtle px-3 py-2 text-sm text-copy-primary shadow-none placeholder:text-copy-muted focus-visible:border-brand/60 focus-visible:ring-1 focus-visible:ring-brand/30"
             rows={1}
           />
           <Button
@@ -147,7 +147,7 @@ function SpecsTab() {
         type="button"
         disabled
         aria-label="Generate spec unavailable"
-        className="h-10 w-full gap-2 bg-brand text-sm text-white hover:bg-brand-hover"
+        className="h-9 w-full gap-2 rounded-xl bg-brand text-sm text-white hover:bg-brand-hover"
       >
         <Sparkles className="h-4 w-4" />
         Generate Spec Unavailable
@@ -189,17 +189,22 @@ function AiSidebar({ isOpen, onClose }) {
       aria-hidden={!isOpen}
       inert={isOpen ? undefined : ""}
       className={cn(
-        "absolute bottom-0 right-0 top-0 z-30 flex w-full flex-col border-l border-surface-border bg-base/95 p-4 text-copy-primary shadow-2xl backdrop-blur-xl transition-transform duration-200 ease-out sm:w-[23.75rem] sm:min-w-[21.25rem] sm:max-w-[25rem]",
-        isOpen ? "translate-x-0" : "pointer-events-none translate-x-full"
+        "fixed inset-x-3 bottom-3 top-auto z-40 flex max-h-[78vh] flex-col rounded-2xl border border-surface-border bg-base/95 p-3 text-copy-primary shadow-2xl backdrop-blur-xl transition-transform duration-200 ease-out md:absolute md:bottom-3 md:left-auto md:right-3 md:top-3 md:max-h-none md:w-[360px] md:rounded-[1.4rem] md:p-3.5",
+        isOpen
+          ? "translate-y-0 md:translate-x-0"
+          : "pointer-events-none translate-y-[calc(100%+1rem)] md:translate-x-[calc(100%+1rem)] md:translate-y-0"
       )}
     >
       <header className="flex shrink-0 items-center gap-3 border-b border-surface-border pb-3">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-surface-border bg-elevated text-brand">
+          <Sparkles className="h-4 w-4" />
+        </div>
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-semibold text-copy-primary">
-            ArchPilot Assistant
+            Ask ArchPilot
           </h2>
           <p className="mt-0.5 text-[11px] text-copy-muted">
-            Ready to help with your architecture
+            Architecture assistant
           </p>
         </div>
         <Button
@@ -208,23 +213,23 @@ function AiSidebar({ isOpen, onClose }) {
           size="icon"
           aria-label="Close AI sidebar"
           onClick={onClose}
-          className="-mr-2 text-copy-muted hover:bg-subtle hover:text-copy-primary"
+          className="-mr-2 h-8 w-8 text-copy-muted hover:bg-subtle hover:text-copy-primary"
         >
           <X className="h-5 w-5" />
         </Button>
       </header>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-3 shrink-0">
-        <TabsList className="grid h-8 w-full grid-cols-2 rounded-xl border border-surface-border bg-elevated p-1">
+        <TabsList className="grid h-8 w-full grid-cols-2 rounded-full border border-surface-border bg-elevated p-1">
           <TabsTrigger
             value="architect"
-            className="rounded-lg text-xs text-copy-muted data-active:bg-accent-dim data-active:text-brand"
+            className="rounded-full text-xs text-copy-muted data-active:bg-accent-dim data-active:text-brand"
           >
             AI Architect
           </TabsTrigger>
           <TabsTrigger
             value="specs"
-            className="rounded-lg text-xs text-copy-muted data-active:bg-accent-dim data-active:text-brand"
+            className="rounded-full text-xs text-copy-muted data-active:bg-accent-dim data-active:text-brand"
           >
             Specs
           </TabsTrigger>
