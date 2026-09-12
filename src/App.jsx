@@ -95,6 +95,10 @@ function EditorShell({ pathname, navigate }) {
           startedAt: performance.now(),
         }
         const token = await getToken()
+        if (ignore) {
+          return
+        }
+
         timings.tokenMs = performance.now() - timings.startedAt
 
         if (!token) {

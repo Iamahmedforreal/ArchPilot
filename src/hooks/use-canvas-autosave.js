@@ -16,12 +16,14 @@ function useCanvasAutosave({
   enabled,
   initialRevision,
   baselineKey,
+  onConflict,
   onStatusChange,
 }) {
   const lastSavedCanvasRef = useRef(null)
   const lastSavedRevisionRef = useRef(null)
   const saveRequestRef = useRef(0)
   const baselineKeyRef = useRef(null)
+  const isReconcilingConflictRef = useRef(false)
 
   useEffect(() => {
     saveRequestRef.current += 1
@@ -30,10 +32,14 @@ function useCanvasAutosave({
       lastSavedCanvasRef.current = null
       lastSavedRevisionRef.current = null
       baselineKeyRef.current = null
+      isReconcilingConflictRef.current = false
       return
     }
 
-    if (baselineKeyRef.current === baselineKey) {
+    if (
+      baselineKeyRef.current === baselineKey ||
+      isReconcilingConflictRef.current
+    ) {
       return
     }
 
@@ -52,7 +58,7 @@ function useCanvasAutosave({
   ])
 
   useEffect(() => {
-    if (!projectId || !enabled) {
+    if (!projectId || !enabled || isReconcilingConflictRef.current) {
       return
     }
 
@@ -88,6 +94,8 @@ function useCanvasAutosave({
       } catch (error) {
         if (requestId === saveRequestRef.current) {
           if (error.status === 409) {
+            isReconcilingConflictRef.current = true
+
             try {
               const token = await getToken()
               const savedCanvas = token
@@ -95,6 +103,8 @@ function useCanvasAutosave({
                 : null
 
               if (savedCanvas) {
+                await onConflict?.(savedCanvas)
+
                 lastSavedCanvasRef.current = serializeCanvas(
                   savedCanvas.nodes,
                   savedCanvas.edges
@@ -103,6 +113,8 @@ function useCanvasAutosave({
               }
             } catch (refreshError) {
               console.error(refreshError)
+            } finally {
+              isReconcilingConflictRef.current = false
             }
           }
 
@@ -113,7 +125,7 @@ function useCanvasAutosave({
     }, AUTOSAVE_DELAY_MS)
 
     return () => window.clearTimeout(saveTimeout)
-  }, [edges, enabled, getToken, nodes, onStatusChange, projectId])
+  }, [edges, enabled, getToken, nodes, onConflict, onStatusChange, projectId])
 }
 
 export { useCanvasAutosave }

@@ -726,6 +726,23 @@ function CanvasSurface({
     canvasLoadState === "loading" ||
     (canvasLoadState === "ready" && fittedCanvasKey !== canvasLoadKey)
 
+  const reconcileCanvasConflict = useCallback(
+    async (serverCanvas) => {
+      const snapshot = {
+        nodes: serverCanvas.nodes ?? [],
+        edges: serverCanvas.edges ?? [],
+      }
+
+      isApplyingHistoryRef.current = true
+      historyRef.current = { past: [], future: [] }
+      lastSnapshotRef.current = cloneCanvasSnapshot(snapshot.nodes, snapshot.edges)
+      nodeCounterRef.current = snapshot.nodes.length
+      setNodes(snapshot.nodes)
+      setEdges(snapshot.edges)
+    },
+    [setEdges, setNodes]
+  )
+
   useCanvasAutosave({
     projectId,
     nodes,
@@ -734,6 +751,7 @@ function CanvasSurface({
     enabled: isCanvasReady,
     initialRevision: initialCanvas?.revision ?? null,
     baselineKey: fittedCanvasKey,
+    onConflict: reconcileCanvasConflict,
     onStatusChange: onSaveStatusChange,
   })
 
