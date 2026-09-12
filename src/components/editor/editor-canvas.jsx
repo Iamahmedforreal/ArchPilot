@@ -1,14 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import {
-  Circle,
-  Database,
-  Diamond,
-  Hexagon,
-  Minus,
-  Plus,
-  RectangleHorizontal,
-  Rows2,
-} from "lucide-react"
+import { MoreHorizontal, Minus, Plus } from "lucide-react"
 import {
   addEdge,
   ConnectionMode,
@@ -18,11 +9,14 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useEdgesState,
+  useNodesInitialized,
   useNodesState,
   useReactFlow,
 } from "@xyflow/react"
 
 import { Button } from "@/components/ui/button"
+import { architectureComponents } from "@/components/editor/architecture-components"
+import { ArchitectureIcon } from "@/components/editor/architecture-icons"
 import { StarterTemplatesModal } from "@/components/editor/starter-templates-modal"
 import { useCanvasAutosave } from "@/hooks/use-canvas-autosave"
 import { cn } from "@/lib/utils"
@@ -31,6 +25,15 @@ const SHAPE_DRAG_TYPE = "application/archpilot-shape"
 const DEFAULT_NODE_COLOR = "var(--bg-elevated)"
 const DEFAULT_NODE_TEXT_COLOR = "var(--text-primary)"
 const HISTORY_LIMIT = 80
+const INITIAL_FIT_PADDING = 0.3
+const INITIAL_FIT_MAX_ZOOM = 1
+const PRIMARY_COMPONENT_TYPES = [
+  "webApp",
+  "api",
+  "service",
+  "database",
+  "queue",
+]
 
 const nodeColorPalette = [
   {
@@ -62,45 +65,6 @@ const nodeColorPalette = [
     name: "External",
     background: "#242424",
     text: "var(--text-primary)",
-  },
-]
-
-const shapes = [
-  {
-    name: "rectangle",
-    label: "Rectangle",
-    icon: RectangleHorizontal,
-    size: { width: 180, height: 96 },
-  },
-  {
-    name: "diamond",
-    label: "Diamond",
-    icon: Diamond,
-    size: { width: 160, height: 160 },
-  },
-  {
-    name: "circle",
-    label: "Circle",
-    icon: Circle,
-    size: { width: 128, height: 128 },
-  },
-  {
-    name: "pill",
-    label: "Pill",
-    icon: Rows2,
-    size: { width: 180, height: 80 },
-  },
-  {
-    name: "cylinder",
-    label: "Cylinder",
-    icon: Database,
-    size: { width: 156, height: 116 },
-  },
-  {
-    name: "hexagon",
-    label: "Hexagon",
-    icon: Hexagon,
-    size: { width: 164, height: 116 },
   },
 ]
 
@@ -270,6 +234,59 @@ const MIN_NODE_SIZE = {
   height: 48,
 }
 
+function resolveNodeColor(color) {
+  return color && color !== "default" ? color : DEFAULT_NODE_COLOR
+}
+
+function ArchitectureNodeRenderer({
+  iconKey,
+  label = "",
+  size,
+  color = DEFAULT_NODE_COLOR,
+  textColor = DEFAULT_NODE_TEXT_COLOR,
+  selected = false,
+  preview = false,
+  hideLabel = false,
+}) {
+  const width = size?.width ?? 160
+  const height = size?.height ?? 88
+  const resolvedColor = resolveNodeColor(color)
+
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-3 rounded-lg border px-3 text-sm font-semibold shadow-xl",
+        preview && "opacity-70"
+      )}
+      style={{
+        width,
+        height,
+        background: resolvedColor,
+        borderColor: selected
+          ? "var(--accent-primary-hover)"
+          : "var(--border-subtle)",
+        color: textColor,
+      }}
+    >
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-surface-border bg-base/70 text-brand">
+        <ArchitectureIcon iconKey={iconKey} className="h-5 w-5" />
+      </div>
+      {hideLabel ? (
+        <span className="min-w-0 flex-1" />
+      ) : (
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate text-left",
+            !label && "text-copy-faint"
+          )}
+        >
+          {label || "Label"}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function NodeColorToolbar({ activeColor, activeTextColor, onSelectColor }) {
   function stopToolbarInteraction(event) {
     event.stopPropagation()
@@ -327,10 +344,11 @@ function CanvasNode({ id, data, selected }) {
   const [isEditing, setIsEditing] = useState(false)
   const { updateNodeData } = useReactFlow()
   const width = data.size?.width ?? 160
-  const height = data.size?.height ?? 96
+  const height = data.size?.height ?? (data.shape ? 96 : 88)
   const label = data.label ?? ""
   const nodeColor = data.color ?? DEFAULT_NODE_COLOR
   const nodeTextColor = data.textColor ?? DEFAULT_NODE_TEXT_COLOR
+  const isLegacyShapeNode = Boolean(data.shape)
 
   const updateLabel = useCallback(
     (value) => {
@@ -382,15 +400,34 @@ function CanvasNode({ id, data, selected }) {
         handleClassName="!h-4 !w-4 !rounded-full !border-2 !border-canvas !bg-copy-primary !shadow-lg transition-colors hover:!bg-brand"
         lineClassName="!border-brand !opacity-80"
       />
-      <ShapeRenderer
-        shape={data.shape}
-        label=""
-        size={{ width, height }}
-        color={nodeColor}
-        textColor={nodeTextColor}
-        selected={selected}
-      />
-      <div className="absolute inset-0 z-10 flex items-center justify-center px-4 text-center">
+      {isLegacyShapeNode ? (
+        <ShapeRenderer
+          shape={data.shape}
+          label=""
+          size={{ width, height }}
+          color={resolveNodeColor(nodeColor)}
+          textColor={nodeTextColor}
+          selected={selected}
+        />
+      ) : (
+        <ArchitectureNodeRenderer
+          iconKey={data.iconKey}
+          label=""
+          size={{ width, height }}
+          color={nodeColor}
+          textColor={nodeTextColor}
+          selected={selected}
+          hideLabel
+        />
+      )}
+      <div
+        className={cn(
+          "absolute inset-0 z-10 flex items-center text-center",
+          isLegacyShapeNode
+            ? "justify-center px-4"
+            : "justify-start px-3 pl-[3.75rem] pr-4 text-left"
+        )}
+      >
         {isEditing ? (
           <textarea
             value={label}
@@ -407,7 +444,10 @@ function CanvasNode({ id, data, selected }) {
             onPointerDown={stopCanvasInteraction}
             onMouseDown={stopCanvasInteraction}
             onDoubleClick={stopCanvasInteraction}
-            className="nodrag nopan max-h-full min-h-5 w-full resize-none overflow-hidden border-0 bg-transparent p-0 text-center text-sm font-medium leading-5 outline-none placeholder:text-copy-faint"
+            className={cn(
+              "nodrag nopan max-h-full min-h-5 w-full resize-none overflow-hidden border-0 bg-transparent p-0 text-sm font-medium leading-5 outline-none placeholder:text-copy-faint",
+              isLegacyShapeNode ? "text-center" : "text-left"
+            )}
             style={{ color: label ? nodeTextColor : "var(--text-faint)" }}
           />
         ) : (
@@ -425,7 +465,8 @@ function CanvasNode({ id, data, selected }) {
               }
             }}
             className={cn(
-              "flex h-full w-full items-center justify-center whitespace-pre-wrap break-words text-center text-sm font-medium leading-5 outline-none",
+              "flex h-full w-full items-center whitespace-pre-wrap break-words text-sm font-medium leading-5 outline-none",
+              isLegacyShapeNode ? "justify-center text-center" : "justify-start text-left",
               !label && "text-copy-faint"
             )}
             style={{ color: label ? nodeTextColor : undefined }}
@@ -466,17 +507,29 @@ const nodeTypes = {
   canvasNode: CanvasNode,
 }
 
-function ShapePanel({ onPreviewStart, onPreviewMove, onPreviewEnd }) {
-  function handleDragStart(event, shape) {
+function ComponentPalette({ onPreviewStart, onPreviewMove, onPreviewEnd }) {
+  const [isMoreOpen, setIsMoreOpen] = useState(false)
+  const primaryComponents = PRIMARY_COMPONENT_TYPES.map((componentType) =>
+    architectureComponents.find((component) => component.componentType === componentType)
+  ).filter(Boolean)
+  const overflowComponents = architectureComponents.filter(
+    (component) => !PRIMARY_COMPONENT_TYPES.includes(component.componentType)
+  )
+
+  function handleDragStart(event, component) {
     event.dataTransfer.effectAllowed = "copy"
     event.dataTransfer.setData(
       SHAPE_DRAG_TYPE,
       JSON.stringify({
-        shape: shape.name,
-        size: shape.size,
+        componentType: component.componentType,
+        iconKey: component.iconKey,
+        defaultLabel: component.label,
+        width: component.width,
+        height: component.height,
       })
     )
-    onPreviewStart(shape, event)
+    onPreviewStart(component, event)
+    setIsMoreOpen(false)
 
     if (typeof Image !== "undefined") {
       const dragImage = new Image()
@@ -486,34 +539,67 @@ function ShapePanel({ onPreviewStart, onPreviewMove, onPreviewEnd }) {
     }
   }
 
-  return (
-    <div className="absolute bottom-5 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full border border-surface-border bg-surface/95 p-1.5 shadow-2xl backdrop-blur-xl">
-      {shapes.map((shape) => {
-        const Icon = shape.icon
+  function renderComponentButton(component, compact = false) {
+    return (
+      <Button
+        key={component.componentType}
+        type="button"
+        variant="ghost"
+        draggable
+        aria-label={`Add ${component.label}`}
+        title={`${component.group}: ${component.label}`}
+        onDragStart={(event) => handleDragStart(event, component)}
+        onDrag={(event) => onPreviewMove(event)}
+        onDragEnd={onPreviewEnd}
+        className={cn(
+          "shrink-0 text-copy-muted hover:bg-subtle hover:text-brand",
+          compact
+            ? "h-9 w-full justify-start gap-2 rounded-md px-2"
+            : "h-9 w-[5.5rem] flex-col gap-0.5 rounded-full px-2"
+        )}
+      >
+        <ArchitectureIcon iconKey={component.iconKey} className="h-4 w-4" />
+        <span
+          className={cn(
+            "truncate font-medium leading-none",
+            compact ? "text-xs" : "max-w-full text-[10px]"
+          )}
+        >
+          {component.label}
+        </span>
+      </Button>
+    )
+  }
 
-        return (
-          <Button
-            key={shape.name}
-            type="button"
-            variant="ghost"
-            size="icon"
-            draggable
-            aria-label={`Add ${shape.label}`}
-            title={shape.label}
-            onDragStart={(event) => handleDragStart(event, shape)}
-            onDrag={(event) => onPreviewMove(event)}
-            onDragEnd={onPreviewEnd}
-            className="rounded-full text-copy-muted hover:bg-subtle hover:text-brand"
-          >
-            <Icon className="h-5 w-5" />
-          </Button>
-        )
-      })}
+  return (
+    <div className="absolute bottom-5 left-1/2 z-10 -translate-x-1/2">
+      {isMoreOpen && (
+        <div className="absolute bottom-full right-0 mb-2 grid w-72 grid-cols-2 gap-1 rounded-xl border border-surface-border bg-surface/95 p-2 shadow-2xl backdrop-blur-xl">
+          {overflowComponents.map((component) =>
+            renderComponentButton(component, true)
+          )}
+        </div>
+      )}
+      <div className="flex items-center gap-1 rounded-full border border-surface-border bg-surface/95 p-1.5 shadow-2xl backdrop-blur-xl">
+        {primaryComponents.map((component) => renderComponentButton(component))}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-expanded={isMoreOpen}
+          aria-label="Show more architecture components"
+          title="More components"
+          onClick={() => setIsMoreOpen((isOpen) => !isOpen)}
+          className="h-9 w-9 rounded-full text-copy-muted hover:bg-subtle hover:text-brand"
+        >
+          <MoreHorizontal className="h-5 w-5" />
+        </Button>
+      </div>
     </div>
   )
 }
 
-function ShapeDragPreview({ preview }) {
+function DragPreview({ preview }) {
   if (!preview) {
     return null
   }
@@ -528,12 +614,22 @@ function ShapeDragPreview({ preview }) {
         transformOrigin: "top left",
       }}
     >
-      <ShapeRenderer
-        shape={preview.shape}
-        size={preview.size}
-        color={DEFAULT_NODE_COLOR}
-        preview
-      />
+      {preview.shape ? (
+        <ShapeRenderer
+          shape={preview.shape}
+          size={preview.size}
+          color={DEFAULT_NODE_COLOR}
+          preview
+        />
+      ) : (
+        <ArchitectureNodeRenderer
+          iconKey={preview.iconKey}
+          label={preview.label}
+          size={preview.size}
+          color="default"
+          preview
+        />
+      )}
     </div>
   )
 }
@@ -567,31 +663,212 @@ function ZoomControls({ onZoomIn, onZoomOut }) {
   )
 }
 
+function CanvasLoadingSurface() {
+  return (
+    <div className="absolute inset-0 z-20 flex items-center justify-center bg-canvas bg-dotted px-6 text-center">
+      <div className="max-w-sm">
+        <div className="mx-auto h-8 w-8 rounded-full border-2 border-surface-border border-t-brand animate-spin" />
+        <h1 className="mt-5 text-xl font-semibold tracking-tight text-copy-primary">
+          Loading workspace
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-copy-muted">
+          Restoring your saved canvas.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function CanvasLoadError({ onRetry }) {
+  return (
+    <div className="absolute inset-0 z-20 flex items-center justify-center bg-canvas/95 bg-dotted px-6 text-center backdrop-blur-sm">
+      <div className="max-w-sm">
+        <h1 className="text-2xl font-semibold tracking-tight text-copy-primary">
+          Could not load canvas
+        </h1>
+        <p className="mt-3 text-sm leading-6 text-copy-muted">
+          Your saved canvas could not be restored. Retry before editing so local
+          changes do not replace stored work.
+        </p>
+        <Button type="button" className="mt-6" onClick={onRetry}>
+          Retry
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function CanvasSurface({
   isTemplatesModalOpen,
   onTemplatesModalOpenChange,
   projectId,
   getToken,
+  canvasLoadState,
+  canvasLoadKey,
+  initialCanvas,
+  onCanvasRetry,
   onSaveStatusChange,
 }) {
   const nodeCounterRef = useRef(0)
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
+  const [hydratedCanvasKey, setHydratedCanvasKey] = useState(null)
+  const [fittedCanvasKey, setFittedCanvasKey] = useState(null)
   const [dragPreview, setDragPreview] = useState(null)
-  const { fitView, screenToFlowPosition, zoomIn, zoomOut } = useReactFlow()
+  const { fitView, screenToFlowPosition, setViewport, zoomIn, zoomOut } = useReactFlow()
+  const nodesInitialized = useNodesInitialized()
   const historyRef = useRef({ past: [], future: [] })
   const lastSnapshotRef = useRef(null)
   const isApplyingHistoryRef = useRef(false)
+  const isCanvasReady =
+    canvasLoadState === "ready" && fittedCanvasKey === canvasLoadKey
+  const isInitialCanvasPending =
+    canvasLoadState === "loading" ||
+    (canvasLoadState === "ready" && fittedCanvasKey !== canvasLoadKey)
+
+  const reconcileCanvasConflict = useCallback(
+    async (serverCanvas) => {
+      const snapshot = {
+        nodes: serverCanvas.nodes ?? [],
+        edges: serverCanvas.edges ?? [],
+      }
+
+      isApplyingHistoryRef.current = true
+      historyRef.current = { past: [], future: [] }
+      lastSnapshotRef.current = cloneCanvasSnapshot(snapshot.nodes, snapshot.edges)
+      nodeCounterRef.current = snapshot.nodes.length
+      setNodes(snapshot.nodes)
+      setEdges(snapshot.edges)
+    },
+    [setEdges, setNodes]
+  )
 
   useCanvasAutosave({
     projectId,
     nodes,
     edges,
-    setNodes,
-    setEdges,
     getToken,
+    enabled: isCanvasReady,
+    initialRevision: initialCanvas?.revision ?? null,
+    baselineKey: fittedCanvasKey,
+    onConflict: reconcileCanvasConflict,
     onStatusChange: onSaveStatusChange,
   })
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (canvasLoadState === "loading") {
+      queueMicrotask(() => {
+        if (!cancelled) {
+          setHydratedCanvasKey(null)
+          setFittedCanvasKey(null)
+        }
+      })
+    }
+
+    return () => {
+      cancelled = true
+    }
+  }, [canvasLoadState])
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (
+      canvasLoadState !== "ready" ||
+      !initialCanvas ||
+      hydratedCanvasKey === canvasLoadKey
+    ) {
+      return () => {
+        cancelled = true
+      }
+    }
+
+    const snapshot = {
+      nodes: initialCanvas.nodes ?? [],
+      edges: initialCanvas.edges ?? [],
+    }
+
+    isApplyingHistoryRef.current = true
+    historyRef.current = { past: [], future: [] }
+    lastSnapshotRef.current = cloneCanvasSnapshot(snapshot.nodes, snapshot.edges)
+    nodeCounterRef.current = snapshot.nodes.length
+    setNodes(snapshot.nodes)
+    setEdges(snapshot.edges)
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setHydratedCanvasKey(canvasLoadKey)
+
+        if (snapshot.nodes.length === 0) {
+          setFittedCanvasKey(canvasLoadKey)
+        }
+      }
+    })
+
+    if (initialCanvas.viewport) {
+      setViewport(initialCanvas.viewport, { duration: 0 })
+    }
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    canvasLoadKey,
+    canvasLoadState,
+    hydratedCanvasKey,
+    initialCanvas,
+    setEdges,
+    setNodes,
+    setViewport,
+  ])
+
+  useEffect(() => {
+    let cancelled = false
+    let frameId = null
+
+    if (
+      canvasLoadState !== "ready" ||
+      hydratedCanvasKey !== canvasLoadKey ||
+      fittedCanvasKey === canvasLoadKey ||
+      nodes.length === 0 ||
+      !nodesInitialized
+    ) {
+      return () => {
+        cancelled = true
+        if (frameId !== null) {
+          window.cancelAnimationFrame(frameId)
+        }
+      }
+    }
+
+    frameId = window.requestAnimationFrame(() => {
+      fitView({
+        padding: INITIAL_FIT_PADDING,
+        maxZoom: INITIAL_FIT_MAX_ZOOM,
+        duration: 0,
+      }).finally(() => {
+        if (!cancelled) {
+          setFittedCanvasKey(canvasLoadKey)
+        }
+      })
+    })
+
+    return () => {
+      cancelled = true
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId)
+      }
+    }
+  }, [
+    canvasLoadKey,
+    canvasLoadState,
+    fitView,
+    fittedCanvasKey,
+    hydratedCanvasKey,
+    nodes.length,
+    nodesInitialized,
+  ])
 
   useEffect(() => {
     const snapshot = cloneCanvasSnapshot(nodes, edges)
@@ -720,10 +997,15 @@ function CanvasSurface({
     }
   }, [redoCanvasChange, undoCanvasChange, zoomIn, zoomOut])
 
-  const handlePreviewStart = useCallback((shape, event) => {
+  const handlePreviewStart = useCallback((component, event) => {
     setDragPreview({
-      shape: shape.name,
-      size: shape.size,
+      componentType: component.componentType,
+      iconKey: component.iconKey,
+      label: component.label,
+      size: {
+        width: component.width,
+        height: component.height,
+      },
       x: event.clientX,
       y: event.clientY,
     })
@@ -767,14 +1049,21 @@ function CanvasSurface({
       event.preventDefault()
       setDragPreview(null)
 
-      let shapePayload
+      let componentPayload
       try {
-        shapePayload = JSON.parse(payload)
+        componentPayload = JSON.parse(payload)
       } catch {
         return
       }
 
-      if (!shapePayload.shape || !shapePayload.size) {
+      const isArchitectureComponent =
+        componentPayload.componentType &&
+        componentPayload.iconKey &&
+        componentPayload.width &&
+        componentPayload.height
+      const isLegacyShape = componentPayload.shape && componentPayload.size
+
+      if (!isArchitectureComponent && !isLegacyShape) {
         return
       }
 
@@ -787,16 +1076,28 @@ function CanvasSurface({
       setNodes((currentNodes) => [
         ...currentNodes,
         {
-          id: `${shapePayload.shape}-${Date.now()}-${nodeCounterRef.current}`,
+          id: `${componentPayload.componentType ?? componentPayload.shape}-${Date.now()}-${nodeCounterRef.current}`,
           type: "canvasNode",
           position,
-          data: {
-            label: "",
-            color: DEFAULT_NODE_COLOR,
-            textColor: DEFAULT_NODE_TEXT_COLOR,
-            shape: shapePayload.shape,
-            size: shapePayload.size,
-          },
+          data: isArchitectureComponent
+            ? {
+                label: componentPayload.defaultLabel,
+                color: "default",
+                textColor: DEFAULT_NODE_TEXT_COLOR,
+                componentType: componentPayload.componentType,
+                iconKey: componentPayload.iconKey,
+                size: {
+                  width: componentPayload.width,
+                  height: componentPayload.height,
+                },
+              }
+            : {
+                label: "",
+                color: DEFAULT_NODE_COLOR,
+                textColor: DEFAULT_NODE_TEXT_COLOR,
+                shape: componentPayload.shape,
+                size: componentPayload.size,
+              },
         },
       ])
     },
@@ -839,6 +1140,7 @@ function CanvasSurface({
       onDrop={handleDrop}
     >
       <ReactFlow
+        className="h-full w-full"
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
@@ -855,14 +1157,14 @@ function CanvasSurface({
         panOnDrag
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
       />
-      {nodes.length === 0 && (
+      {isCanvasReady && nodes.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center">
           <div className="max-w-sm">
             <h1 className="text-2xl font-semibold tracking-tight text-copy-primary">
               Canvas workspace
             </h1>
             <p className="mt-3 text-sm leading-6 text-copy-muted">
-              Drag a shape from the bottom panel to create a node.
+              Drag a component from the bottom panel to create a node.
             </p>
           </div>
         </div>
@@ -871,17 +1173,19 @@ function CanvasSurface({
         onZoomIn={() => zoomIn({ duration: 120 })}
         onZoomOut={() => zoomOut({ duration: 120 })}
       />
-      <ShapePanel
+      <ComponentPalette
         onPreviewStart={handlePreviewStart}
         onPreviewMove={handlePreviewMove}
         onPreviewEnd={handlePreviewEnd}
       />
-      <ShapeDragPreview preview={dragPreview} />
+      <DragPreview preview={dragPreview} />
       <StarterTemplatesModal
         open={isTemplatesModalOpen}
         onOpenChange={onTemplatesModalOpenChange}
         onImport={handleImportTemplate}
       />
+      {isInitialCanvasPending && <CanvasLoadingSurface />}
+      {canvasLoadState === "error" && <CanvasLoadError onRetry={onCanvasRetry} />}
     </div>
   )
 }
@@ -891,6 +1195,10 @@ function EditorCanvas({
   onTemplatesModalOpenChange,
   projectId,
   getToken,
+  canvasLoadState = "ready",
+  canvasLoadKey = null,
+  initialCanvas = { nodes: [], edges: [], revision: null },
+  onCanvasRetry,
   onSaveStatusChange,
 }) {
   return (
@@ -900,6 +1208,10 @@ function EditorCanvas({
         onTemplatesModalOpenChange={onTemplatesModalOpenChange}
         projectId={projectId}
         getToken={getToken}
+        canvasLoadState={canvasLoadState}
+        canvasLoadKey={canvasLoadKey}
+        initialCanvas={initialCanvas}
+        onCanvasRetry={onCanvasRetry}
         onSaveStatusChange={onSaveStatusChange}
       />
     </ReactFlowProvider>

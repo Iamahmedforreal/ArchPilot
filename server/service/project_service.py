@@ -34,6 +34,16 @@ async def list_projects(session: AsyncSession, owner_id: str) -> list[dict]:
     return [serialize_project(project) for project in result.scalars().all()]
 
 
+async def get_owned_project(
+    session: AsyncSession,
+    owner_id: str,
+    project_id: int,
+) -> Project | None:
+    return await session.scalar(
+        select(Project).where(Project.id == project_id, Project.owner_id == owner_id)
+    )
+
+
 #function for creating new project
 async def create_project(
     session: AsyncSession,

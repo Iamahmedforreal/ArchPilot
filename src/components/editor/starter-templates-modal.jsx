@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
+import { ArchitectureIcon } from "@/components/editor/architecture-icons"
 import { CANVAS_TEMPLATES } from "@/components/editor/starter-templates"
 
 const PREVIEW_WIDTH = 280
@@ -87,6 +88,31 @@ function TemplatePreviewNode({ node, projected }) {
   const shape = node.data.shape
   const centerX = projected.x + projected.width / 2
   const centerY = projected.y + projected.height / 2
+
+  if (!shape) {
+    return (
+      <foreignObject
+        x={projected.x}
+        y={projected.y}
+        width={projected.width}
+        height={projected.height}
+      >
+        <div
+          className="flex h-full w-full items-center gap-1.5 rounded-md border px-1.5 text-[7px] font-semibold leading-none"
+          style={{
+            background: fill,
+            borderColor: stroke,
+            color: node.data.textColor,
+          }}
+        >
+          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-surface-border bg-base/70 text-brand">
+            <ArchitectureIcon iconKey={node.data.iconKey} className="h-3 w-3" />
+          </div>
+          <span className="min-w-0 flex-1 truncate">{node.data.label || "Label"}</span>
+        </div>
+      </foreignObject>
+    )
+  }
 
   if (shape === "circle") {
     return (
