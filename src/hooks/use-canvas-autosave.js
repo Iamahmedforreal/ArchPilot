@@ -98,19 +98,27 @@ function useCanvasAutosave({
 
             try {
               const token = await getToken()
-              const savedCanvas = token
-                ? await fetchCanvas(token, projectId)
-                : null
-
-              if (savedCanvas) {
-                await onConflict?.(savedCanvas)
-
-                lastSavedCanvasRef.current = serializeCanvas(
-                  savedCanvas.nodes,
-                  savedCanvas.edges
-                )
-                lastSavedRevisionRef.current = savedCanvas.revision
+              if (!token) {
+                throw new Error("Missing project session token", {
+                  cause: error,
+                })
               }
+
+              const savedCanvas = await fetchCanvas(token, projectId)
+              const reconciledCanvas = savedCanvas ?? {
+                nodes: [],
+                edges: [],
+                revision: null,
+              }
+              await onConflict?.(reconciledCanvas)
+
+              lastSavedCanvasRef.current = serializeCanvas(
+                reconciledCanvas.nodes,
+                reconciledCanvas.edges
+              )
+              lastSavedRevisionRef.current = reconciledCanvas.revision
+              onStatusChange("saved")
+              return
             } catch (refreshError) {
               console.error(refreshError)
             } finally {
