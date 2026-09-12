@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef } from "react"
 
 import { fetchCanvas, saveCanvas } from "@/lib/project-api"
 
@@ -8,103 +8,51 @@ function serializeCanvas(nodes, edges) {
   return JSON.stringify({ nodes, edges })
 }
 
-function hasCanvasContent(nodes, edges) {
-  return nodes.length > 0 || edges.length > 0
-}
-
 function useCanvasAutosave({
   projectId,
   nodes,
   edges,
-  setNodes,
-  setEdges,
   getToken,
+  enabled,
+  initialRevision,
+  baselineKey,
   onStatusChange,
 }) {
-  const [isReady, setIsReady] = useState(false)
   const lastSavedCanvasRef = useRef(null)
   const lastSavedRevisionRef = useRef(null)
-  const currentCanvasRef = useRef({ nodes, edges })
   const saveRequestRef = useRef(0)
+  const baselineKeyRef = useRef(null)
 
   useEffect(() => {
-    currentCanvasRef.current = { nodes, edges }
-  }, [edges, nodes])
+    saveRequestRef.current += 1
 
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadCanvas() {
-      setIsReady(false)
+    if (!enabled || !projectId) {
       lastSavedCanvasRef.current = null
       lastSavedRevisionRef.current = null
-
-      if (!projectId) {
-        onStatusChange("idle")
-        setIsReady(true)
-        return
-      }
-
-      const initialCanvas = currentCanvasRef.current
-      if (hasCanvasContent(initialCanvas.nodes, initialCanvas.edges)) {
-        lastSavedCanvasRef.current = serializeCanvas(
-          initialCanvas.nodes,
-          initialCanvas.edges
-        )
-        onStatusChange("idle")
-        setIsReady(true)
-        return
-      }
-
-      try {
-        const token = await getToken()
-        if (!token || cancelled) {
-          return
-        }
-
-        const savedCanvas = await fetchCanvas(token, projectId)
-        const currentCanvas = currentCanvasRef.current
-
-        if (
-          !cancelled &&
-          savedCanvas &&
-          !hasCanvasContent(currentCanvas.nodes, currentCanvas.edges)
-        ) {
-          setNodes(savedCanvas.nodes)
-          setEdges(savedCanvas.edges)
-          lastSavedCanvasRef.current = serializeCanvas(
-            savedCanvas.nodes,
-            savedCanvas.edges
-          )
-          lastSavedRevisionRef.current = savedCanvas.revision
-        }
-
-        if (!cancelled && !savedCanvas) {
-          lastSavedCanvasRef.current = serializeCanvas([], [])
-          lastSavedRevisionRef.current = null
-        }
-
-        if (!cancelled) {
-          onStatusChange("idle")
-          setIsReady(true)
-        }
-      } catch (error) {
-        if (!cancelled) {
-          console.error(error)
-          onStatusChange("error")
-        }
-      }
+      baselineKeyRef.current = null
+      return
     }
 
-    loadCanvas()
-
-    return () => {
-      cancelled = true
+    if (baselineKeyRef.current === baselineKey) {
+      return
     }
-  }, [getToken, onStatusChange, projectId, setEdges, setNodes])
+
+    baselineKeyRef.current = baselineKey
+    lastSavedCanvasRef.current = serializeCanvas(nodes, edges)
+    lastSavedRevisionRef.current = initialRevision ?? null
+    onStatusChange("idle")
+  }, [
+    baselineKey,
+    edges,
+    enabled,
+    initialRevision,
+    nodes,
+    onStatusChange,
+    projectId,
+  ])
 
   useEffect(() => {
-    if (!projectId || !isReady) {
+    if (!projectId || !enabled) {
       return
     }
 
@@ -165,7 +113,7 @@ function useCanvasAutosave({
     }, AUTOSAVE_DELAY_MS)
 
     return () => window.clearTimeout(saveTimeout)
-  }, [edges, getToken, isReady, nodes, onStatusChange, projectId])
+  }, [edges, enabled, getToken, nodes, onStatusChange, projectId])
 }
 
 export { useCanvasAutosave }

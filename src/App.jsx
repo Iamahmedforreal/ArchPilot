@@ -19,7 +19,7 @@ import {
   isSignUpRoute,
   normalizePath,
 } from "@/lib/auth-routes"
-import { fetchProject } from "@/lib/project-api"
+import { fetchCanvas, fetchProject } from "@/lib/project-api"
 
 function EditorShell({ pathname, navigate }) {
   const { getToken } = useAuth()
@@ -28,6 +28,9 @@ function EditorShell({ pathname, navigate }) {
   const [currentProject, setCurrentProject] = useState(null)
   const [projectAccessState, setProjectAccessState] = useState("idle")
   const [projectRequestVersion, setProjectRequestVersion] = useState(0)
+  const [canvasRequestVersion, setCanvasRequestVersion] = useState(0)
+  const [canvasLoadState, setCanvasLoadState] = useState("idle")
+  const [initialCanvas, setInitialCanvas] = useState(null)
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false)
   const [canvasSaveStatus, setCanvasSaveStatus] = useState("idle")
   const activeWorkspaceId = pathname.startsWith("/editor/")
@@ -63,56 +66,140 @@ function EditorShell({ pathname, navigate }) {
   )
   const retryProjectRequest = useCallback(() => {
     setProjectRequestVersion((version) => version + 1)
+    setCanvasRequestVersion((version) => version + 1)
+  }, [])
+  const retryCanvasRequest = useCallback(() => {
+    setCanvasRequestVersion((version) => version + 1)
   }, [])
 
   useEffect(() => {
     let ignore = false
+    const abortController = new AbortController()
 
-    async function loadProject() {
+    async function loadWorkspace() {
       if (!activeWorkspaceId) {
         setCurrentProject(null)
         setProjectAccessState("idle")
+        setInitialCanvas(null)
+        setCanvasLoadState("idle")
         return
       }
 
       setProjectAccessState("loading")
+      setCanvasLoadState("loading")
+      setInitialCanvas(null)
+      setCanvasSaveStatus("idle")
 
       try {
+        const timings = {
+          startedAt: performance.now(),
+        }
         const token = await getToken()
+        timings.tokenMs = performance.now() - timings.startedAt
+
         if (!token) {
           setCurrentProject(null)
           setProjectAccessState("denied")
+          setCanvasLoadState("error")
           return
         }
 
-        const project = await fetchProject(token, activeWorkspaceId)
+        const projectStartedAt = performance.now()
+        const projectRequest = fetchProject(token, activeWorkspaceId, {
+          signal: abortController.signal,
+        }).finally(() => {
+          timings.projectMs = performance.now() - projectStartedAt
+        })
+        const canvasStartedAt = performance.now()
+        const canvasRequest = fetchCanvas(token, activeWorkspaceId, {
+          signal: abortController.signal,
+        }).finally(() => {
+          timings.canvasMs = performance.now() - canvasStartedAt
+        })
+        const [projectResult, canvasResult] = await Promise.allSettled([
+          projectRequest,
+          canvasRequest,
+        ])
+
         if (ignore) {
           return
         }
 
+        if (projectResult.status === "rejected") {
+          throw projectResult.reason
+        }
+
+        const project = projectResult.value
         if (!project) {
           setCurrentProject(null)
           setProjectAccessState("denied")
+          setCanvasLoadState("error")
           return
         }
 
         setCurrentProject(project)
         setProjectAccessState("ready")
+
+        if (canvasResult.status === "rejected") {
+          console.error(canvasResult.reason)
+          setCanvasLoadState("error")
+          console.info("Canvas entry load timings", {
+            projectId: activeWorkspaceId,
+            tokenMs: Math.round(timings.tokenMs),
+            projectMs: Math.round(timings.projectMs ?? 0),
+            canvasMs: Math.round(timings.canvasMs ?? 0),
+            result: "canvas-error",
+          })
+          return
+        }
+
+        const loadedCanvas = canvasResult.value
+        setInitialCanvas(
+          loadedCanvas
+            ? {
+                nodes: loadedCanvas.nodes ?? [],
+                edges: loadedCanvas.edges ?? [],
+                viewport: loadedCanvas.viewport,
+                revision: loadedCanvas.revision ?? null,
+              }
+            : {
+                nodes: [],
+                edges: [],
+                revision: null,
+              }
+        )
+        setCanvasLoadState("ready")
+        console.info("Canvas entry load timings", {
+          projectId: activeWorkspaceId,
+          tokenMs: Math.round(timings.tokenMs),
+          projectMs: Math.round(timings.projectMs ?? 0),
+          canvasMs: Math.round(timings.canvasMs ?? 0),
+          payloadBytes: loadedCanvas
+            ? new Blob([JSON.stringify(loadedCanvas)]).size
+            : 0,
+          result: loadedCanvas ? "snapshot" : "empty",
+        })
       } catch (error) {
+        if (error.name === "AbortError") {
+          return
+        }
+
         console.error(error)
         if (!ignore) {
           setCurrentProject(null)
           setProjectAccessState("error")
+          setCanvasLoadState("error")
         }
       }
     }
 
-    loadProject()
+    loadWorkspace()
 
     return () => {
       ignore = true
+      abortController.abort()
     }
-  }, [activeWorkspaceId, getToken, projectRequestVersion])
+  }, [activeWorkspaceId, canvasRequestVersion, getToken, projectRequestVersion])
 
   function renderWorkspaceContent() {
     if (!activeWorkspaceId) {
@@ -180,6 +267,10 @@ function EditorShell({ pathname, navigate }) {
           onTemplatesModalOpenChange={setIsTemplatesModalOpen}
           projectId={activeWorkspaceId}
           getToken={getToken}
+          canvasLoadState={canvasLoadState}
+          canvasLoadKey={`${activeWorkspaceId}:${canvasRequestVersion}`}
+          initialCanvas={initialCanvas}
+          onCanvasRetry={retryCanvasRequest}
           onSaveStatusChange={setCanvasSaveStatus}
         />
         <AiSidebar

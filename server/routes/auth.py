@@ -1,9 +1,15 @@
+from dataclasses import dataclass
+
 from clerk_backend_api import Clerk
 from clerk_backend_api.security.types import AuthenticateRequestOptions
 from fastapi import HTTPException, Request, status
 
 from utils.utils import settings
-from lib.project_access import ClerkIdentity
+
+
+@dataclass(frozen=True)
+class ClerkIdentity:
+    user_id: str
 
 
 async def get_current_identity(

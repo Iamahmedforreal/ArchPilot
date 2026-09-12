@@ -9,6 +9,7 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useEdgesState,
+  useNodesInitialized,
   useNodesState,
   useReactFlow,
 } from "@xyflow/react"
@@ -24,6 +25,8 @@ const SHAPE_DRAG_TYPE = "application/archpilot-shape"
 const DEFAULT_NODE_COLOR = "var(--bg-elevated)"
 const DEFAULT_NODE_TEXT_COLOR = "var(--text-primary)"
 const HISTORY_LIMIT = 80
+const INITIAL_FIT_PADDING = 0.3
+const INITIAL_FIT_MAX_ZOOM = 1
 const PRIMARY_COMPONENT_TYPES = [
   "webApp",
   "api",
@@ -660,31 +663,194 @@ function ZoomControls({ onZoomIn, onZoomOut }) {
   )
 }
 
+function CanvasLoadingSurface() {
+  return (
+    <div className="absolute inset-0 z-20 flex items-center justify-center bg-canvas bg-dotted px-6 text-center">
+      <div className="max-w-sm">
+        <div className="mx-auto h-8 w-8 rounded-full border-2 border-surface-border border-t-brand animate-spin" />
+        <h1 className="mt-5 text-xl font-semibold tracking-tight text-copy-primary">
+          Loading workspace
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-copy-muted">
+          Restoring your saved canvas.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function CanvasLoadError({ onRetry }) {
+  return (
+    <div className="absolute inset-0 z-20 flex items-center justify-center bg-canvas/95 bg-dotted px-6 text-center backdrop-blur-sm">
+      <div className="max-w-sm">
+        <h1 className="text-2xl font-semibold tracking-tight text-copy-primary">
+          Could not load canvas
+        </h1>
+        <p className="mt-3 text-sm leading-6 text-copy-muted">
+          Your saved canvas could not be restored. Retry before editing so local
+          changes do not replace stored work.
+        </p>
+        <Button type="button" className="mt-6" onClick={onRetry}>
+          Retry
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 function CanvasSurface({
   isTemplatesModalOpen,
   onTemplatesModalOpenChange,
   projectId,
   getToken,
+  canvasLoadState,
+  canvasLoadKey,
+  initialCanvas,
+  onCanvasRetry,
   onSaveStatusChange,
 }) {
   const nodeCounterRef = useRef(0)
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
+  const [hydratedCanvasKey, setHydratedCanvasKey] = useState(null)
+  const [fittedCanvasKey, setFittedCanvasKey] = useState(null)
   const [dragPreview, setDragPreview] = useState(null)
-  const { fitView, screenToFlowPosition, zoomIn, zoomOut } = useReactFlow()
+  const { fitView, screenToFlowPosition, setViewport, zoomIn, zoomOut } = useReactFlow()
+  const nodesInitialized = useNodesInitialized()
   const historyRef = useRef({ past: [], future: [] })
   const lastSnapshotRef = useRef(null)
   const isApplyingHistoryRef = useRef(false)
+  const isCanvasReady =
+    canvasLoadState === "ready" && fittedCanvasKey === canvasLoadKey
+  const isInitialCanvasPending =
+    canvasLoadState === "loading" ||
+    (canvasLoadState === "ready" && fittedCanvasKey !== canvasLoadKey)
 
   useCanvasAutosave({
     projectId,
     nodes,
     edges,
-    setNodes,
-    setEdges,
     getToken,
+    enabled: isCanvasReady,
+    initialRevision: initialCanvas?.revision ?? null,
+    baselineKey: fittedCanvasKey,
     onStatusChange: onSaveStatusChange,
   })
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (canvasLoadState === "loading") {
+      queueMicrotask(() => {
+        if (!cancelled) {
+          setHydratedCanvasKey(null)
+          setFittedCanvasKey(null)
+        }
+      })
+    }
+
+    return () => {
+      cancelled = true
+    }
+  }, [canvasLoadState])
+
+  useEffect(() => {
+    let cancelled = false
+
+    if (
+      canvasLoadState !== "ready" ||
+      !initialCanvas ||
+      hydratedCanvasKey === canvasLoadKey
+    ) {
+      return () => {
+        cancelled = true
+      }
+    }
+
+    const snapshot = {
+      nodes: initialCanvas.nodes ?? [],
+      edges: initialCanvas.edges ?? [],
+    }
+
+    isApplyingHistoryRef.current = true
+    historyRef.current = { past: [], future: [] }
+    lastSnapshotRef.current = cloneCanvasSnapshot(snapshot.nodes, snapshot.edges)
+    nodeCounterRef.current = snapshot.nodes.length
+    setNodes(snapshot.nodes)
+    setEdges(snapshot.edges)
+    queueMicrotask(() => {
+      if (!cancelled) {
+        setHydratedCanvasKey(canvasLoadKey)
+
+        if (snapshot.nodes.length === 0) {
+          setFittedCanvasKey(canvasLoadKey)
+        }
+      }
+    })
+
+    if (initialCanvas.viewport) {
+      setViewport(initialCanvas.viewport, { duration: 0 })
+    }
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    canvasLoadKey,
+    canvasLoadState,
+    hydratedCanvasKey,
+    initialCanvas,
+    setEdges,
+    setNodes,
+    setViewport,
+  ])
+
+  useEffect(() => {
+    let cancelled = false
+    let frameId = null
+
+    if (
+      canvasLoadState !== "ready" ||
+      hydratedCanvasKey !== canvasLoadKey ||
+      fittedCanvasKey === canvasLoadKey ||
+      nodes.length === 0 ||
+      !nodesInitialized
+    ) {
+      return () => {
+        cancelled = true
+        if (frameId !== null) {
+          window.cancelAnimationFrame(frameId)
+        }
+      }
+    }
+
+    frameId = window.requestAnimationFrame(() => {
+      fitView({
+        padding: INITIAL_FIT_PADDING,
+        maxZoom: INITIAL_FIT_MAX_ZOOM,
+        duration: 0,
+      }).finally(() => {
+        if (!cancelled) {
+          setFittedCanvasKey(canvasLoadKey)
+        }
+      })
+    })
+
+    return () => {
+      cancelled = true
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId)
+      }
+    }
+  }, [
+    canvasLoadKey,
+    canvasLoadState,
+    fitView,
+    fittedCanvasKey,
+    hydratedCanvasKey,
+    nodes.length,
+    nodesInitialized,
+  ])
 
   useEffect(() => {
     const snapshot = cloneCanvasSnapshot(nodes, edges)
@@ -956,6 +1122,7 @@ function CanvasSurface({
       onDrop={handleDrop}
     >
       <ReactFlow
+        className="h-full w-full"
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
@@ -972,7 +1139,7 @@ function CanvasSurface({
         panOnDrag
         defaultViewport={{ x: 0, y: 0, zoom: 1 }}
       />
-      {nodes.length === 0 && (
+      {isCanvasReady && nodes.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-6 text-center">
           <div className="max-w-sm">
             <h1 className="text-2xl font-semibold tracking-tight text-copy-primary">
@@ -999,6 +1166,8 @@ function CanvasSurface({
         onOpenChange={onTemplatesModalOpenChange}
         onImport={handleImportTemplate}
       />
+      {isInitialCanvasPending && <CanvasLoadingSurface />}
+      {canvasLoadState === "error" && <CanvasLoadError onRetry={onCanvasRetry} />}
     </div>
   )
 }
@@ -1008,6 +1177,10 @@ function EditorCanvas({
   onTemplatesModalOpenChange,
   projectId,
   getToken,
+  canvasLoadState = "ready",
+  canvasLoadKey = null,
+  initialCanvas = { nodes: [], edges: [], revision: null },
+  onCanvasRetry,
   onSaveStatusChange,
 }) {
   return (
@@ -1017,6 +1190,10 @@ function EditorCanvas({
         onTemplatesModalOpenChange={onTemplatesModalOpenChange}
         projectId={projectId}
         getToken={getToken}
+        canvasLoadState={canvasLoadState}
+        canvasLoadKey={canvasLoadKey}
+        initialCanvas={initialCanvas}
+        onCanvasRetry={onCanvasRetry}
         onSaveStatusChange={onSaveStatusChange}
       />
     </ReactFlowProvider>

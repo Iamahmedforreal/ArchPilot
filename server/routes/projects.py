@@ -1,7 +1,4 @@
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from lib.project_access import ClerkIdentity, get_project_with_access
 from schema.crud_schema import (
     CanvasSaveResponse,
     CanvasStateRequest,
@@ -12,12 +9,13 @@ from schema.crud_schema import (
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 from model.db import get_db
-from routes.auth import get_current_identity, get_current_user_id
+from routes.auth import get_current_user_id
 from service.project_service import (
     ProjectForbiddenError,
     ProjectNotFoundError,
     create_project,
     delete_project,
+    get_owned_project,
     list_projects,
     rename_project,
     serialize_project,
@@ -57,10 +55,10 @@ async def post_project(
 async def get_project(
     project_id: int,
     response: Response,
-    identity: ClerkIdentity = Depends(get_current_identity),
+    owner_id: str = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_db),
 ) -> dict:
-    project = await get_project_with_access(session, identity, project_id)
+    project = await get_owned_project(session, owner_id, project_id)
     if project is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -74,10 +72,10 @@ async def get_project(
 @router.get("/{project_id}/canvas", response_model=CanvasStateResponse)
 async def get_project_canvas(
     project_id: int,
-    identity: ClerkIdentity = Depends(get_current_identity),
+    owner_id: str = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_db),
 ) -> dict | Response:
-    project = await get_project_with_access(session, identity, project_id)
+    project = await get_owned_project(session, owner_id, project_id)
     if project is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -108,21 +106,14 @@ async def get_project_canvas(
 async def put_project_canvas(
     project_id: int,
     payload: CanvasStateRequest,
-    identity: ClerkIdentity = Depends(get_current_identity),
+    owner_id: str = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_db),
 ) -> dict:
-    project = await get_project_with_access(session, identity, project_id)
-    if project is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Project not found",
-        )
-
     try:
         canvas_json_path, revision = await save_project_canvas(
             session,
-            project.id,
-            identity.user_id,
+            project_id,
+            owner_id,
             payload.model_dump(mode="json", exclude={"revision"}),
             payload.revision,
         )

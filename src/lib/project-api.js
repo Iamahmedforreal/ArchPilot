@@ -21,19 +21,21 @@ async function parseProjectResponse(response) {
   return response.json()
 }
 
-async function fetchProjects(token) {
+async function fetchProjects(token, options = {}) {
   const response = await fetch(`${API_BASE_URL}/api/projects`, {
     cache: "no-store",
     headers: getProjectHeaders(token),
+    signal: options.signal,
   })
 
   return parseProjectResponse(response)
 }
 
-async function fetchProject(token, projectId) {
+async function fetchProject(token, projectId, options = {}) {
   const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}`, {
     cache: "no-store",
     headers: getProjectHeaders(token),
+    signal: options.signal,
   })
 
   if (response.status === 404 || response.status === 403) {
@@ -72,13 +74,14 @@ async function deleteProject(token, projectId) {
   return parseProjectResponse(response)
 }
 
-async function fetchCanvas(token, projectId) {
+async function fetchCanvas(token, projectId, options = {}) {
   const response = await fetch(`${API_BASE_URL}/api/projects/${projectId}/canvas`, {
     cache: "no-store",
     headers: getProjectHeaders(token),
+    signal: options.signal,
   })
 
-  if (response.status === 204 || response.status === 404) {
+  if (response.status === 204) {
     return null
   }
 
