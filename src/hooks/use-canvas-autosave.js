@@ -8,6 +8,48 @@ function serializeCanvas(nodes, edges) {
   return JSON.stringify({ nodes, edges })
 }
 
+function hasChangedAfterSave(currentItem, savedItem) {
+  return JSON.stringify(currentItem) !== JSON.stringify(savedItem)
+}
+
+function reconcileItems(serverItems, savedItems, currentItems) {
+  const savedById = new Map(savedItems.map((item) => [item.id, item]))
+  const currentById = new Map(currentItems.map((item) => [item.id, item]))
+  const reconciledById = new Map(serverItems.map((item) => [item.id, item]))
+
+  for (const savedItem of savedItems) {
+    if (!currentById.has(savedItem.id)) {
+      reconciledById.delete(savedItem.id)
+    }
+  }
+
+  for (const currentItem of currentItems) {
+    const savedItem = savedById.get(currentItem.id)
+
+    if (!savedItem || hasChangedAfterSave(currentItem, savedItem)) {
+      reconciledById.set(currentItem.id, currentItem)
+    }
+  }
+
+  return Array.from(reconciledById.values())
+}
+
+function reconcileCanvasConflict(serverCanvas, savedCanvas, currentCanvas) {
+  return {
+    nodes: reconcileItems(
+      serverCanvas.nodes ?? [],
+      savedCanvas.nodes ?? [],
+      currentCanvas.nodes ?? []
+    ),
+    edges: reconcileItems(
+      serverCanvas.edges ?? [],
+      savedCanvas.edges ?? [],
+      currentCanvas.edges ?? []
+    ),
+    revision: serverCanvas.revision ?? null,
+  }
+}
+
 function useCanvasAutosave({
   projectId,
   nodes,
@@ -24,6 +66,11 @@ function useCanvasAutosave({
   const saveRequestRef = useRef(0)
   const baselineKeyRef = useRef(null)
   const isReconcilingConflictRef = useRef(false)
+  const currentCanvasRef = useRef({ nodes, edges })
+
+  useEffect(() => {
+    currentCanvasRef.current = { nodes, edges }
+  }, [edges, nodes])
 
   useEffect(() => {
     saveRequestRef.current += 1
@@ -105,19 +152,37 @@ function useCanvasAutosave({
               }
 
               const savedCanvas = await fetchCanvas(token, projectId)
-              const reconciledCanvas = savedCanvas ?? {
+              const serverCanvas = savedCanvas ?? {
                 nodes: [],
                 edges: [],
                 revision: null,
               }
+              const savedAttemptCanvas = JSON.parse(serializedCanvas)
+              const reconciledCanvas = reconcileCanvasConflict(
+                serverCanvas,
+                savedAttemptCanvas,
+                currentCanvasRef.current
+              )
               await onConflict?.(reconciledCanvas)
 
-              lastSavedCanvasRef.current = serializeCanvas(
+              const serverSerializedCanvas = serializeCanvas(
+                serverCanvas.nodes,
+                serverCanvas.edges
+              )
+              const reconciledSerializedCanvas = serializeCanvas(
                 reconciledCanvas.nodes,
                 reconciledCanvas.edges
               )
-              lastSavedRevisionRef.current = reconciledCanvas.revision
-              onStatusChange("saved")
+              lastSavedCanvasRef.current = serializeCanvas(
+                serverCanvas.nodes,
+                serverCanvas.edges
+              )
+              lastSavedRevisionRef.current = serverCanvas.revision
+              onStatusChange(
+                reconciledSerializedCanvas === serverSerializedCanvas
+                  ? "saved"
+                  : "saving"
+              )
               return
             } catch (refreshError) {
               console.error(refreshError)
