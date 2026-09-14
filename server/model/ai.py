@@ -7,6 +7,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     String,
@@ -78,6 +79,11 @@ class Conversation(Base):
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
     __table_args__ = (
+        UniqueConstraint(
+            "conversation_id",
+            "id",
+            name="uq_chat_messages_conversation_id_id",
+        ),
         Index("ix_chat_messages_conversation_id", "conversation_id"),
         Index("ix_chat_messages_created_at", "created_at"),
     )
@@ -108,6 +114,18 @@ class ChatMessage(Base):
 class AIRun(Base):
     __tablename__ = "ai_runs"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["conversation_id", "user_message_id"],
+            ["chat_messages.conversation_id", "chat_messages.id"],
+            name="fk_ai_runs_user_message_conversation",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["conversation_id", "assistant_message_id"],
+            ["chat_messages.conversation_id", "chat_messages.id"],
+            name="fk_ai_runs_assistant_message_conversation",
+            ondelete="SET NULL",
+        ),
         UniqueConstraint(
             "conversation_id",
             "idempotency_key",
@@ -128,11 +146,9 @@ class AIRun(Base):
         nullable=False,
     )
     user_message_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("chat_messages.id", ondelete="RESTRICT"),
         nullable=False,
     )
     assistant_message_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("chat_messages.id", ondelete="SET NULL"),
         nullable=True,
     )
     status: Mapped[AIRunStatus] = mapped_column(

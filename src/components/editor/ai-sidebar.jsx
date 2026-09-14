@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react"
+import { useEffect, useEffectEvent, useId, useRef, useState } from "react"
 import { Download, FileText, Send, Sparkles, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -177,8 +177,10 @@ function AiSidebar({ isOpen, onClose, onOpen }) {
   const [isWorking, setIsWorking] = useState(false)
   const assistantTitleId = useId()
   const triggerRef = useRef(null)
+  const dialogRef = useRef(null)
   const closeButtonRef = useRef(null)
   const responseTimeoutRef = useRef(null)
+  const closeAssistant = useEffectEvent(onClose)
 
   useEffect(() => {
     return () => {
@@ -195,12 +197,92 @@ function AiSidebar({ isOpen, onClose, onOpen }) {
 
     const previousOverflow = document.body.style.overflow
     const triggerElement = triggerRef.current
+    const dialogElement = dialogRef.current
+    const inertElements = []
     document.body.style.overflow = "hidden"
+
+    if (dialogElement) {
+      let currentElement = dialogElement
+      let parentElement = currentElement.parentElement
+
+      while (parentElement && parentElement !== document.body) {
+        Array.from(parentElement.children).forEach((sibling) => {
+          if (
+            sibling === currentElement ||
+            sibling.contains(currentElement) ||
+            sibling.hasAttribute("data-ai-sidebar-backdrop")
+          ) {
+            return
+          }
+
+          inertElements.push({
+            element: sibling,
+            inert: sibling.inert,
+            ariaHidden: sibling.getAttribute("aria-hidden"),
+          })
+          sibling.inert = true
+          sibling.setAttribute("aria-hidden", "true")
+        })
+
+        currentElement = parentElement
+        parentElement = parentElement.parentElement
+      }
+    }
+
     closeButtonRef.current?.focus()
+
+    function getFocusableElements() {
+      if (!dialogElement) {
+        return []
+      }
+
+      return Array.from(
+        dialogElement.querySelectorAll(
+          [
+            "a[href]",
+            "button:not([disabled])",
+            "textarea:not([disabled])",
+            "input:not([disabled])",
+            "select:not([disabled])",
+            "[tabindex]:not([tabindex='-1'])",
+          ].join(",")
+        )
+      ).filter((element) => {
+        return !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true"
+      })
+    }
 
     function handleKeyDown(event) {
       if (event.key === "Escape") {
-        onClose()
+        event.preventDefault()
+        closeAssistant()
+        return
+      }
+
+      if (event.key !== "Tab" || !dialogElement) {
+        return
+      }
+
+      const focusableElements = getFocusableElements()
+
+      if (focusableElements.length === 0) {
+        event.preventDefault()
+        dialogElement.focus()
+        return
+      }
+
+      const firstElement = focusableElements[0]
+      const lastElement = focusableElements[focusableElements.length - 1]
+
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault()
+        lastElement.focus()
+        return
+      }
+
+      if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault()
+        firstElement.focus()
       }
     }
 
@@ -208,10 +290,19 @@ function AiSidebar({ isOpen, onClose, onOpen }) {
 
     return () => {
       document.body.style.overflow = previousOverflow
+      inertElements.forEach(({ element, inert, ariaHidden }) => {
+        element.inert = inert
+
+        if (ariaHidden === null) {
+          element.removeAttribute("aria-hidden")
+        } else {
+          element.setAttribute("aria-hidden", ariaHidden)
+        }
+      })
       window.removeEventListener("keydown", handleKeyDown)
       triggerElement?.focus()
     }
-  }, [isOpen, onClose])
+  }, [isOpen])
 
   function submitMessage(nextContent = draft) {
     const content = nextContent.trim()
@@ -266,6 +357,7 @@ function AiSidebar({ isOpen, onClose, onOpen }) {
       {isOpen && (
         <button
           type="button"
+          data-ai-sidebar-backdrop
           aria-label="Close AI assistant"
           className="fixed inset-0 z-30 bg-background/60 md:hidden"
           onClick={onClose}
@@ -273,11 +365,13 @@ function AiSidebar({ isOpen, onClose, onOpen }) {
       )}
 
       <aside
+        ref={dialogRef}
         role="dialog"
         aria-modal={isOpen ? "true" : undefined}
         aria-labelledby={assistantTitleId}
         aria-hidden={!isOpen}
         inert={isOpen ? undefined : ""}
+        tabIndex={-1}
         onPointerDown={(event) => event.stopPropagation()}
         onTouchStart={(event) => event.stopPropagation()}
         onWheel={(event) => event.stopPropagation()}

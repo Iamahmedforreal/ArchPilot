@@ -86,6 +86,11 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint(
+            "conversation_id",
+            "id",
+            name="uq_chat_messages_conversation_id_id",
+        ),
     )
     op.create_index(
         "ix_chat_messages_conversation_id",
@@ -126,19 +131,21 @@ def upgrade() -> None:
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(
-            ["assistant_message_id"],
-            ["chat_messages.id"],
-            ondelete="SET NULL",
-        ),
-        sa.ForeignKeyConstraint(
             ["conversation_id"],
             ["conversations.id"],
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
-            ["user_message_id"],
-            ["chat_messages.id"],
+            ["conversation_id", "user_message_id"],
+            ["chat_messages.conversation_id", "chat_messages.id"],
+            name="fk_ai_runs_user_message_conversation",
             ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(
+            ["conversation_id", "assistant_message_id"],
+            ["chat_messages.conversation_id", "chat_messages.id"],
+            name="fk_ai_runs_assistant_message_conversation",
+            ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
