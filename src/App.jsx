@@ -21,10 +21,14 @@ import {
 } from "@/lib/auth-routes"
 import { fetchCanvas, fetchProject } from "@/lib/project-api"
 
+function isDesktopViewport() {
+  return window.matchMedia("(min-width: 768px)").matches
+}
+
 function EditorShell({ pathname, navigate }) {
   const { getToken } = useAuth()
   const [isProjectSidebarOpen, setIsProjectSidebarOpen] = useState(false)
-  const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(true)
+  const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(isDesktopViewport)
   const [currentProject, setCurrentProject] = useState(null)
   const [projectAccessState, setProjectAccessState] = useState("idle")
   const [projectRequestVersion, setProjectRequestVersion] = useState(0)
@@ -42,6 +46,12 @@ function EditorShell({ pathname, navigate }) {
 
     queueMicrotask(() => {
       if (isCurrentWorkspace) {
+        if (!activeWorkspaceId) {
+          setIsAiSidebarOpen(false)
+        } else if (isDesktopViewport()) {
+          setIsAiSidebarOpen(true)
+        }
+
         setCanvasSaveStatus("idle")
       }
     })
@@ -279,6 +289,7 @@ function EditorShell({ pathname, navigate }) {
         />
         <AiSidebar
           isOpen={isAiSidebarOpen}
+          onOpen={() => setIsAiSidebarOpen(true)}
           onClose={() => setIsAiSidebarOpen(false)}
         />
       </section>
@@ -291,7 +302,9 @@ function EditorShell({ pathname, navigate }) {
         isSidebarOpen={isProjectSidebarOpen}
         isAiSidebarOpen={isAiSidebarOpen}
         onToggleSidebar={() => setIsProjectSidebarOpen((isOpen) => !isOpen)}
-        onToggleAiSidebar={() => setIsAiSidebarOpen((isOpen) => !isOpen)}
+        onToggleAiSidebar={
+          activeWorkspaceId ? () => setIsAiSidebarOpen((isOpen) => !isOpen) : undefined
+        }
         onOpenTemplates={
           activeWorkspaceId ? () => setIsTemplatesModalOpen(true) : undefined
         }
