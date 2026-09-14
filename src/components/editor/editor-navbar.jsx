@@ -81,17 +81,19 @@ function EditorNavbar({
             <LayoutTemplate className="h-5 w-5" />
           </Button>
         )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={isAiSidebarOpen ? "Close AI sidebar" : "Open AI sidebar"}
-          aria-pressed={isAiSidebarOpen}
-          onClick={onToggleAiSidebar}
-          className="h-9 w-9 rounded-xl text-copy-secondary hover:bg-subtle hover:text-brand"
-        >
-          <Sparkles className="h-5 w-5" />
-        </Button>
+        {onToggleAiSidebar && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={isAiSidebarOpen ? "Close AI sidebar" : "Open AI sidebar"}
+            aria-pressed={isAiSidebarOpen}
+            onClick={onToggleAiSidebar}
+            className="hidden h-9 w-9 rounded-xl text-copy-secondary hover:bg-subtle hover:text-brand md:inline-flex"
+          >
+            <Sparkles className="h-5 w-5" />
+          </Button>
+        )}
         <UserButton />
       </div>
     </header>
