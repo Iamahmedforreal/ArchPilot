@@ -7,6 +7,7 @@ from sqlalchemy import (
     DateTime,
     Enum,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     String,
@@ -32,6 +33,12 @@ class AIRunStatus(str, enum.Enum):
 class AIRun(Base):
     __tablename__ = "ai_runs"
     __table_args__ = (
+        ForeignKeyConstraint(
+            ["project_id", "owner_id"],
+            ["projects.id", "projects.owner_id"],
+            ondelete="CASCADE",
+            name="fk_ai_runs_project_owner",
+        ),
         UniqueConstraint(
             "owner_id",
             "project_id",
@@ -55,7 +62,6 @@ class AIRun(Base):
         default=uuid.uuid4,
     )
     project_id: Mapped[int] = mapped_column(
-        ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
     )
     owner_id: Mapped[str] = mapped_column(String(255), nullable=False)

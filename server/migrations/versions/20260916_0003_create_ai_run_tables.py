@@ -29,6 +29,12 @@ def upgrade() -> None:
     )
     ai_run_status.create(op.get_bind(), checkfirst=False)
 
+    op.create_unique_constraint(
+        "uq_projects_id_owner_id",
+        "projects",
+        ["id", "owner_id"],
+    )
+
     op.create_table(
         "ai_runs",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
@@ -71,9 +77,10 @@ def upgrade() -> None:
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(
-            ["project_id"],
-            ["projects.id"],
+            ["project_id", "owner_id"],
+            ["projects.id", "projects.owner_id"],
             ondelete="CASCADE",
+            name="fk_ai_runs_project_owner",
         ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint(
@@ -148,6 +155,7 @@ def downgrade() -> None:
     op.drop_index("ix_ai_runs_owner_project_id", table_name="ai_runs")
     op.drop_index("ix_ai_runs_project_id_created_at", table_name="ai_runs")
     op.drop_table("ai_runs")
+    op.drop_constraint("uq_projects_id_owner_id", "projects", type_="unique")
     postgresql.ENUM(
         "PENDING",
         "RUNNING",
