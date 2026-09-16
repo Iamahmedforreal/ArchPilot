@@ -21,7 +21,7 @@ import { StarterTemplatesModal } from "@/components/editor/starter-templates-mod
 import { useCanvasAutosave } from "@/hooks/use-canvas-autosave"
 import { cn } from "@/lib/utils"
 
-const SHAPE_DRAG_TYPE = "application/archpilot-shape"
+const COMPONENT_DRAG_TYPE = "application/archpilot-component"
 const DEFAULT_NODE_COLOR = "var(--bg-elevated)"
 const DEFAULT_NODE_TEXT_COLOR = "var(--text-primary)"
 const HISTORY_LIMIT = 80
@@ -101,132 +101,8 @@ function isTextEditingTarget(target) {
   )
 }
 
-function ShapeRenderer({
-  shape,
-  label = "",
-  size,
-  color = DEFAULT_NODE_COLOR,
-  textColor = DEFAULT_NODE_TEXT_COLOR,
-  selected = false,
-  preview = false,
-}) {
-  const width = size?.width ?? 160
-  const height = size?.height ?? 96
-  const strokeColor = selected
-    ? "var(--accent-primary-hover)"
-    : "var(--border-subtle)"
-  const shapeClassName = cn(
-    "relative flex items-center justify-center px-4 text-center text-sm font-medium",
-    preview && "opacity-70"
-  )
-
-  if (shape === "rectangle" || shape === "pill" || shape === "circle") {
-    return (
-      <div
-        className={cn(
-          shapeClassName,
-          "border shadow-xl",
-          shape === "rectangle" && "rounded-xl",
-          shape === "pill" && "rounded-full",
-          shape === "circle" && "rounded-full"
-        )}
-        style={{
-          width,
-          height,
-          background: color,
-          borderColor: strokeColor,
-          color: textColor,
-        }}
-      >
-        {label}
-      </div>
-    )
-  }
-
-  if (shape === "diamond") {
-    return (
-      <div className={shapeClassName} style={{ width, height }}>
-        <svg
-          className="absolute inset-0 h-full w-full overflow-visible drop-shadow-xl"
-          viewBox={`0 0 ${width} ${height}`}
-          aria-hidden="true"
-        >
-          <polygon
-            points={`${width / 2},1 ${width - 1},${height / 2} ${width / 2},${height - 1} 1,${height / 2}`}
-            fill={color}
-            stroke={strokeColor}
-            strokeWidth="1.5"
-          />
-        </svg>
-        <span className="relative z-10 max-w-[62%]" style={{ color: textColor }}>
-          {label}
-        </span>
-      </div>
-    )
-  }
-
-  if (shape === "hexagon") {
-    return (
-      <div className={shapeClassName} style={{ width, height }}>
-        <svg
-          className="absolute inset-0 h-full w-full overflow-visible drop-shadow-xl"
-          viewBox={`0 0 ${width} ${height}`}
-          aria-hidden="true"
-        >
-          <polygon
-            points={`${width * 0.25},1 ${width * 0.75},1 ${width - 1},${height / 2} ${width * 0.75},${height - 1} ${width * 0.25},${height - 1} 1,${height / 2}`}
-            fill={color}
-            stroke={strokeColor}
-            strokeWidth="1.5"
-          />
-        </svg>
-        <span className="relative z-10 max-w-[70%]" style={{ color: textColor }}>
-          {label}
-        </span>
-      </div>
-    )
-  }
-
-  if (shape === "cylinder") {
-    const ellipseHeight = Math.max(18, height * 0.18)
-
-    return (
-      <div className={shapeClassName} style={{ width, height }}>
-        <svg
-          className="absolute inset-0 h-full w-full overflow-visible drop-shadow-xl"
-          viewBox={`0 0 ${width} ${height}`}
-          aria-hidden="true"
-        >
-          <path
-            d={`M 1 ${ellipseHeight / 2} C 1 ${ellipseHeight * 1.45} ${width - 1} ${ellipseHeight * 1.45} ${width - 1} ${ellipseHeight / 2} V ${height - ellipseHeight / 2} C ${width - 1} ${height + ellipseHeight * 0.45} 1 ${height + ellipseHeight * 0.45} 1 ${height - ellipseHeight / 2} Z`}
-            fill={color}
-            stroke={strokeColor}
-            strokeWidth="1.5"
-          />
-          <ellipse
-            cx={width / 2}
-            cy={ellipseHeight / 2}
-            rx={(width - 2) / 2}
-            ry={ellipseHeight / 2}
-            fill={color}
-            stroke={strokeColor}
-            strokeWidth="1.5"
-          />
-          <path
-            d={`M 1 ${height - ellipseHeight / 2} C 1 ${height + ellipseHeight * 0.45} ${width - 1} ${height + ellipseHeight * 0.45} ${width - 1} ${height - ellipseHeight / 2}`}
-            fill="none"
-            stroke={strokeColor}
-            strokeWidth="1.5"
-          />
-        </svg>
-        <span className="relative z-10 max-w-[72%]" style={{ color: textColor }}>
-          {label}
-        </span>
-      </div>
-    )
-  }
-
-  return null
+function stopFloatingControlInteraction(event) {
+  event.stopPropagation()
 }
 
 const MIN_NODE_SIZE = {
@@ -344,11 +220,10 @@ function CanvasNode({ id, data, selected }) {
   const [isEditing, setIsEditing] = useState(false)
   const { updateNodeData } = useReactFlow()
   const width = data.size?.width ?? 160
-  const height = data.size?.height ?? (data.shape ? 96 : 88)
+  const height = data.size?.height ?? 88
   const label = data.label ?? ""
   const nodeColor = data.color ?? DEFAULT_NODE_COLOR
   const nodeTextColor = data.textColor ?? DEFAULT_NODE_TEXT_COLOR
-  const isLegacyShapeNode = Boolean(data.shape)
 
   const updateLabel = useCallback(
     (value) => {
@@ -400,33 +275,17 @@ function CanvasNode({ id, data, selected }) {
         handleClassName="!h-4 !w-4 !rounded-full !border-2 !border-canvas !bg-copy-primary !shadow-lg transition-colors hover:!bg-brand"
         lineClassName="!border-brand !opacity-80"
       />
-      {isLegacyShapeNode ? (
-        <ShapeRenderer
-          shape={data.shape}
-          label=""
-          size={{ width, height }}
-          color={resolveNodeColor(nodeColor)}
-          textColor={nodeTextColor}
-          selected={selected}
-        />
-      ) : (
-        <ArchitectureNodeRenderer
-          iconKey={data.iconKey}
-          label=""
-          size={{ width, height }}
-          color={nodeColor}
-          textColor={nodeTextColor}
-          selected={selected}
-          hideLabel
-        />
-      )}
+      <ArchitectureNodeRenderer
+        iconKey={data.iconKey}
+        label=""
+        size={{ width, height }}
+        color={nodeColor}
+        textColor={nodeTextColor}
+        selected={selected}
+        hideLabel
+      />
       <div
-        className={cn(
-          "absolute inset-0 z-10 flex items-center text-center",
-          isLegacyShapeNode
-            ? "justify-center px-4"
-            : "justify-start px-3 pl-[3.75rem] pr-4 text-left"
-        )}
+        className="absolute inset-0 z-10 flex items-center justify-start px-3 pl-[3.75rem] pr-4 text-left"
       >
         {isEditing ? (
           <textarea
@@ -446,7 +305,7 @@ function CanvasNode({ id, data, selected }) {
             onDoubleClick={stopCanvasInteraction}
             className={cn(
               "nodrag nopan max-h-full min-h-5 w-full resize-none overflow-hidden border-0 bg-transparent p-0 text-sm font-medium leading-5 outline-none placeholder:text-copy-faint",
-              isLegacyShapeNode ? "text-center" : "text-left"
+              "text-left"
             )}
             style={{ color: label ? nodeTextColor : "var(--text-faint)" }}
           />
@@ -466,7 +325,7 @@ function CanvasNode({ id, data, selected }) {
             }}
             className={cn(
               "flex h-full w-full items-center whitespace-pre-wrap break-words text-sm font-medium leading-5 outline-none",
-              isLegacyShapeNode ? "justify-center text-center" : "justify-start text-left",
+              "justify-start text-left",
               !label && "text-copy-faint"
             )}
             style={{ color: label ? nodeTextColor : undefined }}
@@ -519,7 +378,7 @@ function ComponentPalette({ onPreviewStart, onPreviewMove, onPreviewEnd }) {
   function handleDragStart(event, component) {
     event.dataTransfer.effectAllowed = "copy"
     event.dataTransfer.setData(
-      SHAPE_DRAG_TYPE,
+      COMPONENT_DRAG_TYPE,
       JSON.stringify({
         componentType: component.componentType,
         iconKey: component.iconKey,
@@ -572,7 +431,13 @@ function ComponentPalette({ onPreviewStart, onPreviewMove, onPreviewEnd }) {
   }
 
   return (
-    <div className="absolute bottom-5 left-1/2 z-10 -translate-x-1/2">
+    <div
+      className="nodrag nopan absolute bottom-5 left-1/2 z-10 -translate-x-1/2"
+      onPointerDown={stopFloatingControlInteraction}
+      onMouseDown={stopFloatingControlInteraction}
+      onTouchStart={stopFloatingControlInteraction}
+      onDoubleClick={stopFloatingControlInteraction}
+    >
       {isMoreOpen && (
         <div className="absolute bottom-full right-0 mb-2 grid w-72 grid-cols-2 gap-1 rounded-xl border border-surface-border bg-surface/95 p-2 shadow-2xl backdrop-blur-xl">
           {overflowComponents.map((component) =>
@@ -614,29 +479,26 @@ function DragPreview({ preview }) {
         transformOrigin: "top left",
       }}
     >
-      {preview.shape ? (
-        <ShapeRenderer
-          shape={preview.shape}
-          size={preview.size}
-          color={DEFAULT_NODE_COLOR}
-          preview
-        />
-      ) : (
-        <ArchitectureNodeRenderer
-          iconKey={preview.iconKey}
-          label={preview.label}
-          size={preview.size}
-          color="default"
-          preview
-        />
-      )}
+      <ArchitectureNodeRenderer
+        iconKey={preview.iconKey}
+        label={preview.label}
+        size={preview.size}
+        color="default"
+        preview
+      />
     </div>
   )
 }
 
 function ZoomControls({ onZoomIn, onZoomOut }) {
   return (
-    <div className="absolute bottom-5 left-5 z-10 flex overflow-hidden rounded-xl border border-surface-border bg-copy-primary shadow-2xl">
+    <div
+      className="nodrag nopan absolute bottom-5 left-5 z-10 flex overflow-hidden rounded-xl border border-surface-border bg-copy-primary shadow-2xl"
+      onPointerDown={stopFloatingControlInteraction}
+      onMouseDown={stopFloatingControlInteraction}
+      onTouchStart={stopFloatingControlInteraction}
+      onDoubleClick={stopFloatingControlInteraction}
+    >
       <Button
         type="button"
         variant="ghost"
@@ -1032,7 +894,7 @@ function CanvasSurface({
   }, [])
 
   const handleDragOver = useCallback((event) => {
-    if (event.dataTransfer.types.includes(SHAPE_DRAG_TYPE)) {
+    if (event.dataTransfer.types.includes(COMPONENT_DRAG_TYPE)) {
       event.preventDefault()
       event.dataTransfer.dropEffect = "copy"
     }
@@ -1040,7 +902,7 @@ function CanvasSurface({
 
   const handleDrop = useCallback(
     (event) => {
-      const payload = event.dataTransfer.getData(SHAPE_DRAG_TYPE)
+      const payload = event.dataTransfer.getData(COMPONENT_DRAG_TYPE)
       if (!payload) {
         setDragPreview(null)
         return
@@ -1061,9 +923,8 @@ function CanvasSurface({
         componentPayload.iconKey &&
         componentPayload.width &&
         componentPayload.height
-      const isLegacyShape = componentPayload.shape && componentPayload.size
 
-      if (!isArchitectureComponent && !isLegacyShape) {
+      if (!isArchitectureComponent) {
         return
       }
 
@@ -1076,28 +937,20 @@ function CanvasSurface({
       setNodes((currentNodes) => [
         ...currentNodes,
         {
-          id: `${componentPayload.componentType ?? componentPayload.shape}-${Date.now()}-${nodeCounterRef.current}`,
+          id: `${componentPayload.componentType}-${Date.now()}-${nodeCounterRef.current}`,
           type: "canvasNode",
           position,
-          data: isArchitectureComponent
-            ? {
-                label: componentPayload.defaultLabel,
-                color: "default",
-                textColor: DEFAULT_NODE_TEXT_COLOR,
-                componentType: componentPayload.componentType,
-                iconKey: componentPayload.iconKey,
-                size: {
-                  width: componentPayload.width,
-                  height: componentPayload.height,
-                },
-              }
-            : {
-                label: "",
-                color: DEFAULT_NODE_COLOR,
-                textColor: DEFAULT_NODE_TEXT_COLOR,
-                shape: componentPayload.shape,
-                size: componentPayload.size,
-              },
+          data: {
+            label: componentPayload.defaultLabel,
+            color: "default",
+            textColor: DEFAULT_NODE_TEXT_COLOR,
+            componentType: componentPayload.componentType,
+            iconKey: componentPayload.iconKey,
+            size: {
+              width: componentPayload.width,
+              height: componentPayload.height,
+            },
+          },
         },
       ])
     },

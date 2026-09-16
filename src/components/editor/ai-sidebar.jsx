@@ -181,6 +181,9 @@ function AiSidebar({ isOpen, onClose, onOpen }) {
   const closeButtonRef = useRef(null)
   const responseTimeoutRef = useRef(null)
   const closeAssistant = useEffectEvent(onClose)
+  const isMobileDialog =
+    typeof window !== "undefined" &&
+    window.matchMedia("(max-width: 767px)").matches
 
   useEffect(() => {
     return () => {
@@ -199,9 +202,13 @@ function AiSidebar({ isOpen, onClose, onOpen }) {
     const triggerElement = triggerRef.current
     const dialogElement = dialogRef.current
     const inertElements = []
-    document.body.style.overflow = "hidden"
+    const isMobileDialog = window.matchMedia("(max-width: 767px)").matches
 
-    if (dialogElement) {
+    if (isMobileDialog) {
+      document.body.style.overflow = "hidden"
+    }
+
+    if (isMobileDialog && dialogElement) {
       let currentElement = dialogElement
       let parentElement = currentElement.parentElement
 
@@ -229,7 +236,9 @@ function AiSidebar({ isOpen, onClose, onOpen }) {
       }
     }
 
-    closeButtonRef.current?.focus()
+    if (isMobileDialog) {
+      closeButtonRef.current?.focus()
+    }
 
     function getFocusableElements() {
       if (!dialogElement) {
@@ -300,7 +309,9 @@ function AiSidebar({ isOpen, onClose, onOpen }) {
         }
       })
       window.removeEventListener("keydown", handleKeyDown)
-      triggerElement?.focus()
+      if (isMobileDialog) {
+        triggerElement?.focus()
+      }
     }
   }, [isOpen])
 
@@ -367,7 +378,7 @@ function AiSidebar({ isOpen, onClose, onOpen }) {
       <aside
         ref={dialogRef}
         role="dialog"
-        aria-modal={isOpen ? "true" : undefined}
+        aria-modal={isOpen && isMobileDialog ? "true" : undefined}
         aria-labelledby={assistantTitleId}
         aria-hidden={!isOpen}
         inert={isOpen ? undefined : ""}

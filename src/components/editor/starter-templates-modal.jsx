@@ -78,125 +78,31 @@ function getNodeCenter(node, projectedNodes) {
   }
 }
 
-function pointsToString(points) {
-  return points.map((point) => `${point.x},${point.y}`).join(" ")
-}
-
 function TemplatePreviewNode({ node, projected }) {
   const fill = node.data.color
   const stroke = "var(--border-subtle)"
-  const shape = node.data.shape
-  const centerX = projected.x + projected.width / 2
-  const centerY = projected.y + projected.height / 2
-
-  if (!shape) {
-    return (
-      <foreignObject
-        x={projected.x}
-        y={projected.y}
-        width={projected.width}
-        height={projected.height}
-      >
-        <div
-          className="flex h-full w-full items-center gap-1.5 rounded-md border px-1.5 text-[7px] font-semibold leading-none"
-          style={{
-            background: fill,
-            borderColor: stroke,
-            color: node.data.textColor,
-          }}
-        >
-          <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-surface-border bg-base/70 text-brand">
-            <ArchitectureIcon iconKey={node.data.iconKey} className="h-3 w-3" />
-          </div>
-          <span className="min-w-0 flex-1 truncate">{node.data.label || "Label"}</span>
-        </div>
-      </foreignObject>
-    )
-  }
-
-  if (shape === "circle") {
-    return (
-      <ellipse
-        cx={centerX}
-        cy={centerY}
-        rx={projected.width / 2}
-        ry={projected.height / 2}
-        fill={fill}
-        stroke={stroke}
-        strokeWidth="1.5"
-      />
-    )
-  }
-
-  if (shape === "diamond") {
-    return (
-      <polygon
-        points={pointsToString([
-          { x: centerX, y: projected.y },
-          { x: projected.x + projected.width, y: centerY },
-          { x: centerX, y: projected.y + projected.height },
-          { x: projected.x, y: centerY },
-        ])}
-        fill={fill}
-        stroke={stroke}
-        strokeWidth="1.5"
-      />
-    )
-  }
-
-  if (shape === "hexagon") {
-    return (
-      <polygon
-        points={pointsToString([
-          { x: projected.x + projected.width * 0.25, y: projected.y },
-          { x: projected.x + projected.width * 0.75, y: projected.y },
-          { x: projected.x + projected.width, y: centerY },
-          { x: projected.x + projected.width * 0.75, y: projected.y + projected.height },
-          { x: projected.x + projected.width * 0.25, y: projected.y + projected.height },
-          { x: projected.x, y: centerY },
-        ])}
-        fill={fill}
-        stroke={stroke}
-        strokeWidth="1.5"
-      />
-    )
-  }
-
-  if (shape === "cylinder") {
-    const ellipseHeight = Math.max(4, projected.height * 0.18)
-
-    return (
-      <g>
-        <path
-          d={`M ${projected.x} ${projected.y + ellipseHeight / 2} C ${projected.x} ${projected.y + ellipseHeight * 1.45} ${projected.x + projected.width} ${projected.y + ellipseHeight * 1.45} ${projected.x + projected.width} ${projected.y + ellipseHeight / 2} V ${projected.y + projected.height - ellipseHeight / 2} C ${projected.x + projected.width} ${projected.y + projected.height + ellipseHeight * 0.45} ${projected.x} ${projected.y + projected.height + ellipseHeight * 0.45} ${projected.x} ${projected.y + projected.height - ellipseHeight / 2} Z`}
-          fill={fill}
-          stroke={stroke}
-          strokeWidth="1.5"
-        />
-        <ellipse
-          cx={centerX}
-          cy={projected.y + ellipseHeight / 2}
-          rx={projected.width / 2}
-          ry={ellipseHeight / 2}
-          fill={fill}
-          stroke={stroke}
-          strokeWidth="1.5"
-        />
-      </g>
-    )
-  }
 
   return (
-    <rect
+    <foreignObject
       x={projected.x}
       y={projected.y}
       width={projected.width}
       height={projected.height}
-      rx={shape === "pill" ? projected.height / 2 : 8}
-      fill={fill}
-      stroke={stroke}
-      strokeWidth="1.5"
-    />
+    >
+      <div
+        className="flex h-full w-full items-center gap-1.5 rounded-md border px-1.5 text-[7px] font-semibold leading-none"
+        style={{
+          background: fill,
+          borderColor: stroke,
+          color: node.data.textColor,
+        }}
+      >
+        <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border border-surface-border bg-base/70 text-brand">
+          <ArchitectureIcon iconKey={node.data.iconKey} className="h-3 w-3" />
+        </div>
+        <span className="min-w-0 flex-1 truncate">{node.data.label || "Label"}</span>
+      </div>
+    </foreignObject>
   )
 }
 
