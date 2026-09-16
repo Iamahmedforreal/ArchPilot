@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime
-from sqlalchemy import DateTime, Enum, Index, String, Text, func
+from sqlalchemy import DateTime, Enum, Index, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.orm import DeclarativeBase
 
@@ -17,6 +17,7 @@ class ProjectStatus(str, enum.Enum):
 class Project(Base):
     __tablename__ = "projects"
     __table_args__ = (
+        UniqueConstraint("id", "owner_id", name="uq_projects_id_owner_id"),
         Index("ix_projects_owner_id", "owner_id"),
         Index("ix_projects_created_at", "created_at"),
     )
