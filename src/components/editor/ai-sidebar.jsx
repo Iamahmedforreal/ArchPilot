@@ -12,6 +12,14 @@ const STARTER_PROMPTS = [
   "Build a CI/CD pipeline",
 ]
 
+function getIsMobileDialogViewport() {
+  if (typeof window === "undefined") {
+    return false
+  }
+
+  return window.matchMedia("(max-width: 767px)").matches
+}
+
 function ChatBubble({ message }) {
   const isUser = message.role === "user"
 
@@ -181,9 +189,7 @@ function AiSidebar({ isOpen, onClose, onOpen }) {
   const closeButtonRef = useRef(null)
   const responseTimeoutRef = useRef(null)
   const closeAssistant = useEffectEvent(onClose)
-  const isMobileDialog =
-    typeof window !== "undefined" &&
-    window.matchMedia("(max-width: 767px)").matches
+  const [isMobileDialog, setIsMobileDialog] = useState(getIsMobileDialogViewport)
 
   useEffect(() => {
     return () => {
@@ -194,7 +200,33 @@ function AiSidebar({ isOpen, onClose, onOpen }) {
   }, [])
 
   useEffect(() => {
-    if (!isOpen) {
+    if (typeof window === "undefined") {
+      return
+    }
+
+    const mediaQuery = window.matchMedia("(max-width: 767px)")
+
+    function handleMediaQueryChange(event) {
+      setIsMobileDialog(event.matches)
+    }
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener("change", handleMediaQueryChange)
+
+      return () => {
+        mediaQuery.removeEventListener("change", handleMediaQueryChange)
+      }
+    }
+
+    mediaQuery.addListener(handleMediaQueryChange)
+
+    return () => {
+      mediaQuery.removeListener(handleMediaQueryChange)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen || !isMobileDialog) {
       return
     }
 
@@ -202,13 +234,10 @@ function AiSidebar({ isOpen, onClose, onOpen }) {
     const triggerElement = triggerRef.current
     const dialogElement = dialogRef.current
     const inertElements = []
-    const isMobileDialog = window.matchMedia("(max-width: 767px)").matches
 
-    if (isMobileDialog) {
-      document.body.style.overflow = "hidden"
-    }
+    document.body.style.overflow = "hidden"
 
-    if (isMobileDialog && dialogElement) {
+    if (dialogElement) {
       let currentElement = dialogElement
       let parentElement = currentElement.parentElement
 
@@ -236,9 +265,7 @@ function AiSidebar({ isOpen, onClose, onOpen }) {
       }
     }
 
-    if (isMobileDialog) {
-      closeButtonRef.current?.focus()
-    }
+    closeButtonRef.current?.focus()
 
     function getFocusableElements() {
       if (!dialogElement) {
@@ -309,11 +336,9 @@ function AiSidebar({ isOpen, onClose, onOpen }) {
         }
       })
       window.removeEventListener("keydown", handleKeyDown)
-      if (isMobileDialog) {
-        triggerElement?.focus()
-      }
+      triggerElement?.focus()
     }
-  }, [isOpen])
+  }, [isOpen, isMobileDialog])
 
   function submitMessage(nextContent = draft) {
     const content = nextContent.trim()
