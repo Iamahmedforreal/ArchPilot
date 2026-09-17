@@ -114,3 +114,18 @@ async def load_project_canvas(project: Project) -> tuple[dict[str, Any], str] | 
         raise CanvasStorageError("Saved canvas is invalid") from exc
 
     return _validate_canvas_state(canvas_state), blob.etag
+
+
+async def load_project_canvas_revision(project: Project) -> str | None:
+    if not project.canvas_json_path:
+        return None
+
+    try:
+        async with AsyncBlobClient(token=get_canvas_blob_token()) as client:
+            blob = await _get_canvas_blob(client, project.canvas_json_path)
+    except BlobNotFoundError as exc:
+        raise CanvasNotFoundError("Saved canvas was not found") from exc
+    except BlobError as exc:
+        raise CanvasStorageError("Unable to load the canvas revision") from exc
+
+    return blob.etag
