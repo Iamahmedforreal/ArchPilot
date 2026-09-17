@@ -1,6 +1,4 @@
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from schema.crud_schema import (
     CanvasSaveResponse,
     CanvasStateRequest,
@@ -8,11 +6,6 @@ from schema.crud_schema import (
     ProjectCreateRequest,
     ProjectRenameRequest,
     ProjectResponse,
-)
-from schema.ai_chat_schema import (
-    IDEMPOTENCY_KEY_HEADER,
-    AIMessageRequest,
-    AIMessageResponse,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 from model.db import get_db
