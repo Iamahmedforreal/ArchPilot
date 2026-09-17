@@ -1,6 +1,9 @@
+import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from redis.exceptions import ConnectionError as RedisConnectionError
+from redis.exceptions import TimeoutError as RedisTimeoutError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from model.db import get_db
@@ -16,6 +19,7 @@ from service.ai_run_service import (
     AIProjectNotFoundError,
     submit_ai_run,
 )
+from service.ai_queue_service import enqueue_ai_run
 from service.canvas_service import (
     CanvasNotFoundError,
     CanvasRevisionConflictError,
@@ -24,6 +28,7 @@ from service.canvas_service import (
 
 
 router = APIRouter(prefix="/api/projects", tags=["ai"])
+logger = logging.getLogger(__name__)
 
 
 @router.post(
@@ -32,6 +37,7 @@ router = APIRouter(prefix="/api/projects", tags=["ai"])
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def post_project_ai_run(
+    request: Request,
     project_id: int,
     payload: AIMessageRequest,
     idempotency_key: Annotated[
@@ -45,6 +51,7 @@ async def post_project_ai_run(
     owner_id: str = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_db),
 ) -> dict:
+    
     normalized_idempotency_key = idempotency_key.strip()
     if not normalized_idempotency_key:
         raise HTTPException(
@@ -53,7 +60,7 @@ async def post_project_ai_run(
         )
 
     try:
-        return await submit_ai_run(
+        submission = await submit_ai_run(
             session,
             owner_id,
             project_id,
@@ -91,3 +98,20 @@ async def post_project_ai_run(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Canvas storage is unavailable",
         ) from exc
+
+
+    if submission.created:
+        run_id = submission.response["run_id"]
+        try:
+            await enqueue_ai_run(request.app.state.redis, run_id)
+        except (RedisConnectionError, RedisTimeoutError) as exc:
+            logger.exception("Unable to confirm AI job delivery for run_id=%s", run_id)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail={
+                    "message": "AI job delivery could not be confirmed.",
+                    "run_id": str(run_id),
+                },
+            ) from exc
+
+    return submission.response

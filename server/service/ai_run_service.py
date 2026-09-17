@@ -1,5 +1,6 @@
 import hashlib
 import json
+from dataclasses import dataclass
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -26,6 +27,12 @@ class AIProjectBusyError(Exception):
 
 class AIProjectNotFoundError(Exception):
     pass
+
+
+@dataclass(frozen=True)
+class AIRunSubmissionResult:
+    response: dict
+    created: bool
 
 
 def _serialize_run(run: AIRun) -> dict:
@@ -92,7 +99,7 @@ async def submit_ai_run(
     message: str,
     expected_canvas_revision: str | None,
     idempotency_key: str,
-) -> dict:
+) -> AIRunSubmissionResult:
     request_hash = _stable_request_hash(message, expected_canvas_revision)
 
     try:
@@ -109,7 +116,7 @@ async def submit_ai_run(
         if existing_run is not None:
             result = _resolve_existing_run(existing_run, request_hash)
             await session.rollback()
-            return result
+            return AIRunSubmissionResult(response=result, created=False)
 
         active_run = await session.scalar(
             select(AIRun.id).where(
@@ -133,7 +140,7 @@ async def submit_ai_run(
             expected_canvas_revision,
         )
         await session.commit()
-        return _serialize_run(run)
+        return AIRunSubmissionResult(response=_serialize_run(run), created=True)
     except IntegrityError as exc:
         await session.rollback()
         existing_project = await session.scalar(
@@ -146,7 +153,10 @@ async def submit_ai_run(
         if existing_run is None:
             raise exc
 
-        return _resolve_existing_run(existing_run, request_hash)
+        return AIRunSubmissionResult(
+            response=_resolve_existing_run(existing_run, request_hash),
+            created=False,
+        )
     except (
         AIIdempotencyConflictError,
         AIProjectBusyError,
