@@ -3,6 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     database_url: str
+    redis_url: str 
     clerk_secret_key: str | None = None
     clerk_jwt_key: str | None = None
     clerk_authorized_parties: str | None = None
