@@ -1,7 +1,14 @@
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, StringConstraints
-from pydantic import model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    FiniteFloat,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
 
 
 MAX_AI_NODES = 50
@@ -157,7 +164,14 @@ class AICanvasNode(StrictSchema):
 
 class AICanvasEdgeStyle(StrictSchema):
     stroke: Literal["var(--text-faint)"]
-    strokeWidth: Literal[1.5]
+    strokeWidth: Annotated[FiniteFloat, Field(ge=1.5, le=1.5)]
+
+    @field_validator("strokeWidth")
+    @classmethod
+    def validate_stroke_width(cls, value: float) -> float:
+        if value != 1.5:
+            raise ValueError("strokeWidth must be 1.5")
+        return value
 
 
 class AICanvasEdgeMarker(StrictSchema):
@@ -172,9 +186,16 @@ class AICanvasEdge(StrictSchema):
     sourceHandle: Literal["top", "right", "bottom", "left"]
     targetHandle: Literal["top", "right", "bottom", "left"]
     type: Literal["smoothstep"]
-    animated: Literal[False]
+    animated: bool
     style: AICanvasEdgeStyle
     markerEnd: AICanvasEdgeMarker
+
+    @field_validator("animated")
+    @classmethod
+    def validate_not_animated(cls, value: bool) -> bool:
+        if value is not False:
+            raise ValueError("animated must be false")
+        return value
 
 
 class AICanvas(StrictSchema):
