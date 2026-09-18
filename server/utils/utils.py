@@ -1,3 +1,6 @@
+from typing import Any
+
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -8,11 +11,21 @@ class Settings(BaseSettings):
     clerk_jwt_key: str | None = None
     clerk_authorized_parties: str | None = None
     blob_read_write_token: str | None = None
-    
-
-
+    google_gemini_api_key: str | None = None
+    gemini_model: str | None = None
+    gemini_timeout_seconds: int | None = 120
+    gemini_max_output_tokens: int | None = 6000
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @field_validator("google_gemini_api_key", mode="before")
+    @classmethod
+    def normalize_google_gemini_api_key(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            normalized = value.strip()
+            return normalized or None
+
+        return value
 
     @property
     def clerk_authorized_party_list(self) -> list[str] | None:

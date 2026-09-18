@@ -177,6 +177,11 @@ request is a separate run.
 The frontend does not call this endpoint yet. The worker currently loads and
 logs the run but does not call a model or change run status.
 
+The future model response contract is defined and validated separately from the
+HTTP submission response. It supports `generated`, `unsupported`, and
+`needs_clarification` outcomes. See `docs/ai-canvas-output.md` for the exact
+React Flow node and edge format.
+
 ### `GET /api/projects/{project_id}/ai/runs/{run_id}`
 
 Returns an owned run's stored status and progress:

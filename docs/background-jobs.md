@@ -64,6 +64,7 @@ database and does not enqueue or execute work.
 | --- | --- |
 | `server/routes/ai_route.py` | Creates a run, enqueues its ID, and returns the response |
 | `server/service/ai_run_service.py` | Verifies ownership and commits a new pending run |
+| `server/service/ai_context_service.py` | Prepares editor-aware model context and response schema |
 | `server/service/ai_queue_service.py` | Builds the ARQ job name, argument, and deterministic job ID |
 | `server/workers/ai_chat_worker.py` | Loads and inspects an AI run in the worker process |
 | `server/workers/config_worker.py` | ARQ functions, Redis settings, timeout, and concurrency |
