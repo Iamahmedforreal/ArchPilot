@@ -1,17 +1,20 @@
-from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
 
-IDEMPOTENCY_KEY_HEADER = "Idempotency-Key"
 MessageText = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=8000),
 ]
-AIRunStatusValue = Literal["PENDING", "RUNNING", "SUCCEEDED", "FAILED"]
-
+AIRunStatusValue = Literal[
+    "PENDING",
+    "RUNNING",
+    "SUCCEEDED",
+    "FAILED",
+    "CANCELLED",
+]
 
 
 class StrictSchema(BaseModel):
@@ -20,30 +23,21 @@ class StrictSchema(BaseModel):
 
 class AIMessageRequest(StrictSchema):
     message: MessageText
-    expected_canvas_revision: str | None = None
-
-
-
-
-class CanvasModelResponse(StrictSchema):
-    explanation: str | None = None
-    nodes: list[dict[str, Any]]
-    edges: list[dict[str, Any]]
-
 
 
 class AIMessageResponse(StrictSchema):
     run_id: UUID
     status: AIRunStatusValue
 
-class AIRunResponse(StrictSchema):
+
+class AIRunErrorResponse(StrictSchema):
+    code: str | None = None
+    message: str | None = None
+
+
+class AIRunStatusResponse(StrictSchema):
     run_id: UUID
     status: AIRunStatusValue
-    created_at: datetime
-    started_at: datetime | None = None
-    completed_at: datetime | None = None
-    explanation: str | None = None
-    result_canvas_revision: str | None = None
-    error_code: str | None = None
-    error_message: str | None = None
-    canvas: CanvasModelResponse | None = None
+    stage: str | None = None
+    result: dict[str, Any] | None = None
+    error: AIRunErrorResponse | None = None

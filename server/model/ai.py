@@ -1,6 +1,7 @@
 import enum
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     DateTime,
@@ -9,11 +10,10 @@ from sqlalchemy import (
     Index,
     String,
     Text,
-    UniqueConstraint,
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from model.project import Base, Project
@@ -24,16 +24,12 @@ class AIRunStatus(str, enum.Enum):
     RUNNING = "RUNNING"
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
 
 
 class AIRun(Base):
     __tablename__ = "ai_runs"
     __table_args__ = (
-        UniqueConstraint(
-            "project_id",
-            "idempotency_key",
-            name="uq_ai_runs_project_idempotency_key",
-        ),
         Index("ix_ai_runs_project_id_created_at", "project_id", "created_at"),
         Index(
             "ix_ai_runs_project_active_status",
@@ -52,15 +48,17 @@ class AIRun(Base):
         ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
     )
-    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
-    request_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     instruction: Mapped[str] = mapped_column(Text, nullable=False)
-    base_canvas_revision: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[AIRunStatus] = mapped_column(
         Enum(AIRunStatus, name="ai_run_status"),
         nullable=False,
         default=AIRunStatus.PENDING,
         server_default=AIRunStatus.PENDING.value,
+    )
+    stage: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    proposal_json: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB,
+        nullable=True,
     )
     explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
     error_code: Mapped[str | None] = mapped_column(String(255), nullable=True)
