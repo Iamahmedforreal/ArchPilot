@@ -8,9 +8,10 @@ class Settings(BaseSettings):
     clerk_jwt_key: str | None = None
     clerk_authorized_parties: str | None = None
     blob_read_write_token: str | None = None
-    
-
-
+    google_gemini_api_key: str
+    gemini_model: str | None = None
+    gemini_timeout_seconds: int | None = 120
+    gemini_max_output_tokens: int | None = 6000
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
