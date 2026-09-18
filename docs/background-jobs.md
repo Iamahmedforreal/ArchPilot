@@ -6,8 +6,8 @@ worker share the Redis configuration from `server/utils/redis.py`.
 ## Submission Flow
 
 ```text
-POST /api/projects/{project_id}/ai/runs
-    -> validate auth, ownership, idempotency, and canvas revision
+POST /api/projects/{project_id}/ai/design
+    -> authenticate and verify project ownership
     -> commit the PENDING AIRun
     -> enqueue generate_canvas(run_id)
     -> return 202
@@ -20,19 +20,15 @@ job ID:
 ai-run:{run_id}
 ```
 
-That deterministic ID prevents the same run from being present in ARQ twice.
-If ARQ returns `None` because the job ID already exists, delivery is treated as
-successful.
-
-Only newly created runs are enqueued. An idempotent HTTP replay returns the
-saved run and does not send another job.
+That deterministic ID prevents one run from being present in ARQ twice. Every
+HTTP request creates a new run ID and then enqueues it.
 
 ## Delivery Failure
 
-The database commit happens before Redis enqueueing. If a Redis connection or
-timeout error occurs, the route returns `503` with the run ID and leaves the run
-`PENDING`. It is not marked failed because Redis may have accepted the job
-before the connection error became visible to FastAPI.
+The database commit happens before Redis enqueueing. The route does not add
+custom Redis recovery behavior in this minimal flow; an enqueue exception is
+handled by FastAPI's normal server-error behavior and the saved run remains
+`PENDING`.
 
 ## Worker
 
@@ -58,13 +54,16 @@ For each job, the worker:
 The worker does not yet mark runs as `RUNNING`, invoke an AI model, save a
 generated canvas, or mark runs as completed.
 
+The frontend can read stored worker progress through
+`GET /api/projects/{project_id}/ai/runs/{run_id}`. This endpoint only reads the
+database and does not enqueue or execute work.
+
 ## Important Files
 
 | File | Responsibility |
 | --- | --- |
-| `server/routes/ai_route.py` | Enqueues newly committed runs and maps delivery failures to `503` |
-| `server/service/ai_run_service.py` | Creates runs and identifies new versus replayed submissions |
+| `server/routes/ai_route.py` | Creates a run, enqueues its ID, and returns the response |
+| `server/service/ai_run_service.py` | Verifies ownership and commits a new pending run |
 | `server/service/ai_queue_service.py` | Builds the ARQ job name, argument, and deterministic job ID |
 | `server/workers/ai_chat_worker.py` | Loads and inspects an AI run in the worker process |
 | `server/workers/config_worker.py` | ARQ functions, Redis settings, timeout, and concurrency |
-

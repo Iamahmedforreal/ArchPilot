@@ -26,7 +26,8 @@ and mutations are scoped to the authenticated Clerk user.
 | `DELETE` | `/api/projects/{project_id}` | Delete a project | `204` |
 | `GET` | `/api/projects/{project_id}/canvas` | Load the saved canvas | `200` or `204` |
 | `PUT` | `/api/projects/{project_id}/canvas` | Save the complete canvas | `200` |
-| `POST` | `/api/projects/{project_id}/ai/runs` | Accept a background AI run | `202` |
+| `POST` | `/api/projects/{project_id}/ai/design` | Create and enqueue an AI design run | `202` |
+| `GET` | `/api/projects/{project_id}/ai/runs/{run_id}` | Read AI run progress or result | `200` |
 
 ## Health
 
@@ -144,25 +145,19 @@ contains the blob path and new revision:
 
 ## AI Runs
 
-### `POST /api/projects/{project_id}/ai/runs`
-
-Required header:
-
-```http
-Idempotency-Key: <unique-key-for-this-submission>
-```
+### `POST /api/projects/{project_id}/ai/design`
 
 Request body:
 
 ```json
 {
-  "message": "Design a scalable notification service",
-  "expected_canvas_revision": "current-blob-etag"
+  "message": "Design a scalable notification service"
 }
 ```
 
-Use `null` for `expected_canvas_revision` only when no saved canvas exists. A
-successful submission returns:
+The request generates a new complete canvas proposal from the prompt. It does
+not include an existing canvas or canvas revision. A successful submission
+returns:
 
 ```json
 {
@@ -171,28 +166,38 @@ successful submission returns:
 }
 ```
 
-The service enforces project ownership, idempotency, one active run per
-project, and the expected canvas revision. Reusing a key for the same request
-returns the existing run. Reusing it for different input returns `409`.
+The service verifies project ownership and creates one new `PENDING` `AIRun`
+for each request. The route waits for that database commit, then enqueues
+`generate_canvas` with only the run ID. This endpoint does not perform replay
+deduplication, active-run admission checks, or input canvas revision checks.
 
-For a new run, the route commits the database record and then enqueues
-`generate_canvas` with only the run ID. An idempotent replay returns the
-original response without enqueueing a second job.
-
-If Redis delivery raises a connection or timeout error, the saved run remains
-`PENDING` and the route returns `503`:
-
-```json
-{
-  "detail": {
-    "message": "AI job delivery could not be confirmed.",
-    "run_id": "1c0cb1aa-9975-43fd-a975-1c0c8f1ee621"
-  }
-}
-```
+`AIRun` does not store an idempotency key or request hash; every accepted
+request is a separate run.
 
 The frontend does not call this endpoint yet. The worker currently loads and
 logs the run but does not call a model or change run status.
+
+### `GET /api/projects/{project_id}/ai/runs/{run_id}`
+
+Returns an owned run's stored status and progress:
+
+```json
+{
+  "run_id": "1c0cb1aa-9975-43fd-a975-1c0c8f1ee621",
+  "status": "RUNNING",
+  "stage": "generation",
+  "result": null,
+  "error": null
+}
+```
+
+`result` contains the stored canvas proposal only for `SUCCEEDED` runs. `error`
+contains the safe stored `code` and `message` only for `FAILED` runs. Pending,
+running, and cancelled responses expose neither field.
+
+The endpoint returns `404` for inaccessible projects, missing runs, and runs
+belonging to a different project. It is database-read-only and always sends
+`Cache-Control: no-store`.
 
 ## Backend Responsibilities
 

@@ -56,7 +56,8 @@ Current client functions:
 | `fetchCanvas` | `GET /api/projects/{project_id}/canvas` |
 | `saveCanvas` | `PUT /api/projects/{project_id}/canvas` |
 
-The AI run endpoint does not yet have a frontend client function.
+The AI design and run-status endpoints do not yet have frontend client
+functions.
 
 ## Workspace Load Flow
 
@@ -96,8 +97,8 @@ browser navigation, and updates the cache after create, rename, or delete.
 
 The AI sidebar is currently visual only. Submitting a prompt adds a local user
 message and a timed mock assistant response. It does not yet call
-`POST /api/projects/{project_id}/ai/runs`, poll run status, or apply a generated
-canvas.
+`POST /api/projects/{project_id}/ai/design`, poll
+`GET /api/projects/{project_id}/ai/runs/{run_id}`, or apply a generated canvas.
 
 ## Environment Variables
 
@@ -117,4 +118,3 @@ The Clerk sign-in, sign-up, and redirect paths can also be overridden with the
 3. Keep components focused on rendering and user interaction.
 4. Handle loading, empty, error, and access-denied states.
 5. Update this document when the browser routes or main data flow changes.
-
