@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react"
 import { MoreHorizontal, Minus, Plus } from "lucide-react"
 import {
   addEdge,
@@ -561,6 +567,7 @@ function CanvasLoadError({ onRetry }) {
 }
 
 function CanvasSurface({
+  canvasControllerRef,
   isTemplatesModalOpen,
   onTemplatesModalOpenChange,
   projectId,
@@ -582,6 +589,8 @@ function CanvasSurface({
   const historyRef = useRef({ past: [], future: [] })
   const lastSnapshotRef = useRef(null)
   const isApplyingHistoryRef = useRef(false)
+  const localChangeGenerationRef = useRef(0)
+  const [aiFitRequest, setAiFitRequest] = useState(0)
   const isCanvasReady =
     canvasLoadState === "ready" && fittedCanvasKey === canvasLoadKey
   const isInitialCanvasPending =
@@ -596,6 +605,7 @@ function CanvasSurface({
       }
 
       isApplyingHistoryRef.current = true
+      localChangeGenerationRef.current += 1
       historyRef.current = { past: [], future: [] }
       lastSnapshotRef.current = cloneCanvasSnapshot(snapshot.nodes, snapshot.edges)
       nodeCounterRef.current = snapshot.nodes.length
@@ -756,6 +766,7 @@ function CanvasSurface({
     ].slice(-HISTORY_LIMIT)
     historyRef.current.future = []
     lastSnapshotRef.current = snapshot
+    localChangeGenerationRef.current += 1
   }, [edges, nodes])
 
   const handleConnect = useCallback(
@@ -779,12 +790,60 @@ function CanvasSurface({
   const applyCanvasSnapshot = useCallback(
     (snapshot) => {
       isApplyingHistoryRef.current = true
+      localChangeGenerationRef.current += 1
       lastSnapshotRef.current = snapshot
       setNodes(snapshot.nodes)
       setEdges(snapshot.edges)
     },
     [setEdges, setNodes]
   )
+
+  const applyAiCanvas = useCallback(
+    (proposal) => {
+      const currentSnapshot = cloneCanvasSnapshot(nodes, edges)
+      const nextSnapshot = cloneCanvasSnapshot(proposal.nodes, proposal.edges)
+
+      historyRef.current.past = [
+        ...historyRef.current.past,
+        currentSnapshot,
+      ].slice(-HISTORY_LIMIT)
+      historyRef.current.future = []
+      isApplyingHistoryRef.current = true
+      localChangeGenerationRef.current += 1
+      nodeCounterRef.current = nextSnapshot.nodes.length
+      setNodes(nextSnapshot.nodes.map((node) => ({ ...node, selected: false })))
+      setEdges(nextSnapshot.edges.map((edge) => ({ ...edge, selected: false })))
+      setAiFitRequest((request) => request + 1)
+    },
+    [edges, nodes, setEdges, setNodes]
+  )
+
+  useImperativeHandle(
+    canvasControllerRef,
+    () => ({
+      getCanvasMeta() {
+        return {
+          generation: localChangeGenerationRef.current,
+          isEmpty: nodes.length === 0 && edges.length === 0,
+          isReady: isCanvasReady,
+        }
+      },
+      applyAiCanvas,
+    }),
+    [applyAiCanvas, edges.length, isCanvasReady, nodes.length]
+  )
+
+  useEffect(() => {
+    if (aiFitRequest === 0 || !nodesInitialized || nodes.length === 0) {
+      return
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      fitView({ padding: 0.24, maxZoom: 1, duration: 180 })
+    })
+
+    return () => window.cancelAnimationFrame(frameId)
+  }, [aiFitRequest, fitView, nodes.length, nodesInitialized])
 
   const undoCanvasChange = useCallback(() => {
     const previousSnapshot = historyRef.current.past.at(-1)
@@ -1044,6 +1103,7 @@ function CanvasSurface({
 }
 
 function EditorCanvas({
+  canvasControllerRef,
   isTemplatesModalOpen = false,
   onTemplatesModalOpenChange,
   projectId,
@@ -1057,6 +1117,7 @@ function EditorCanvas({
   return (
     <ReactFlowProvider>
       <CanvasSurface
+        canvasControllerRef={canvasControllerRef}
         isTemplatesModalOpen={isTemplatesModalOpen}
         onTemplatesModalOpenChange={onTemplatesModalOpenChange}
         projectId={projectId}

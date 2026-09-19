@@ -9,8 +9,20 @@ function getProjectHeaders(token) {
 
 async function parseProjectResponse(response) {
   if (!response.ok) {
-    const error = new Error(`Project API request failed with ${response.status}`)
+    let payload = null
+
+    try {
+      payload = await response.json()
+    } catch {
+      // Some infrastructure errors do not include a JSON response body.
+    }
+
+    const detail = typeof payload?.detail === "string" ? payload.detail : null
+    const error = new Error(
+      detail || `Project API request failed with ${response.status}`
+    )
     error.status = response.status
+    error.detail = detail
     throw error
   }
 
@@ -98,12 +110,41 @@ async function saveCanvas(token, projectId, canvas, revision) {
   return parseProjectResponse(response)
 }
 
+async function submitAiDesign(token, projectId, message, options = {}) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${projectId}/ai/design`,
+    {
+      method: "POST",
+      headers: getProjectHeaders(token),
+      body: JSON.stringify({ message }),
+      signal: options.signal,
+    }
+  )
+
+  return parseProjectResponse(response)
+}
+
+async function fetchAiRun(token, projectId, runId, options = {}) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${projectId}/ai/runs/${runId}`,
+    {
+      cache: "no-store",
+      headers: getProjectHeaders(token),
+      signal: options.signal,
+    }
+  )
+
+  return parseProjectResponse(response)
+}
+
 export {
   createProject,
   deleteProject,
+  fetchAiRun,
   fetchCanvas,
   fetchProject,
   fetchProjects,
   renameProject,
   saveCanvas,
+  submitAiDesign,
 }

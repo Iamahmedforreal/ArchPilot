@@ -53,4 +53,7 @@ meanings, layout rules, the response JSON schema, and a small valid example.
 It deliberately does not load an existing canvas because the current endpoint
 generates a new design from the prompt.
 
-This context and response schema are not connected to a model call yet.
+The Gemini model service uses this context and response schema for one
+structured generation call. For a generated outcome, the worker stores only
+the serialized `canvas` object in `AIRun.proposal_json`; it stores non-generated
+outcomes as safe failures.

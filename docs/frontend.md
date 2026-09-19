@@ -25,12 +25,14 @@ live in `src/lib/auth-routes.js`.
 | --- | --- |
 | `src/App.jsx` | Auth routing, workspace loading, editor shell, top-level state |
 | `src/lib/project-api.js` | All current HTTP calls to the backend |
+| `src/lib/ai-canvas.js` | Defensive checks for generated canvas proposals |
 | `src/hooks/use-project-actions.js` | Project list cache and create/rename/delete workflows |
 | `src/hooks/use-canvas-autosave.js` | Debounced canvas saves and `409` conflict reconciliation |
+| `src/hooks/use-ai-design.js` | AI submission, polling, progress, and proposal application |
 | `src/components/editor/editor-canvas.jsx` | React Flow nodes, edges, editing, history, templates, and palette |
 | `src/components/editor/project-sidebar.jsx` | Project navigation |
 | `src/components/editor/project-dialogs.jsx` | Create, rename, and delete dialogs |
-| `src/components/editor/ai-sidebar.jsx` | AI and specs interface; currently uses mock responses |
+| `src/components/editor/ai-sidebar.jsx` | AI prompt, run progress, and proposal replacement UI |
 | `src/components/editor/starter-templates.js` | Static starter canvas definitions |
 | `src/components/ui` | Shared shadcn/Radix UI primitives |
 | `src/index.css` | Theme tokens and global styles |
@@ -55,9 +57,12 @@ Current client functions:
 | `deleteProject` | `DELETE /api/projects/{project_id}` |
 | `fetchCanvas` | `GET /api/projects/{project_id}/canvas` |
 | `saveCanvas` | `PUT /api/projects/{project_id}/canvas` |
+| `submitAiDesign` | `POST /api/projects/{project_id}/ai/design` |
+| `fetchAiRun` | `GET /api/projects/{project_id}/ai/runs/{run_id}` |
 
-The AI design and run-status endpoints do not yet have frontend client
-functions.
+AI requests use the same Clerk bearer token, API base URL, response parsing,
+and abort-signal conventions as project and canvas requests. The browser never
+calls Gemini directly.
 
 ## Workspace Load Flow
 
@@ -93,12 +98,31 @@ autosave cycle.
 per Clerk user in module-level maps, normalizes numeric API IDs into strings for
 browser navigation, and updates the cache after create, rename, or delete.
 
-## AI Sidebar Status
+## AI Design Flow
 
-The AI sidebar is currently visual only. Submitting a prompt adds a local user
-message and a timed mock assistant response. It does not yet call
-`POST /api/projects/{project_id}/ai/design`, poll
-`GET /api/projects/{project_id}/ai/runs/{run_id}`, or apply a generated canvas.
+The AI sidebar accepts a prompt only after the owned project and its canvas are
+loaded. `useAiDesign` submits once, stores the returned run ID, and polls the
+run approximately every 1.75 seconds without overlapping requests. It maps the
+backend status and stage to a compact live progress message and stops on
+`SUCCEEDED`, `FAILED`, or `CANCELLED`.
+
+Polling requests and timers are cancelled when the project changes or the
+editor unmounts. Temporary connection errors use bounded backoff. After two
+minutes, local polling pauses and the same run can be checked again without
+creating another run.
+
+Successful results are checked against the current editor component registry
+and graph references before use. If the canvas was empty and its local edit
+generation did not change during the run, the proposal is applied
+automatically. Otherwise, the current work remains intact until the user
+selects `Replace canvas`.
+
+Applying a proposal replaces nodes and edges together, clears selection, adds
+one undo history entry, and fits the resulting graph. The current saved
+revision is preserved, so `useCanvasAutosave` persists the replacement through
+the normal PUT and `409` reconciliation flow. `Design applied` describes the
+local editor action; the navbar continues to show saving, saved, or save-error
+state separately.
 
 ## Environment Variables
 

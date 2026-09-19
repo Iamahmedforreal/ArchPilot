@@ -14,6 +14,7 @@ from workers.ai_chat_worker import (
     _claim_run,
     _persist_response,
     _persist_success,
+    _transition_cancelled_run,
     generate_canvas,
 )
 
@@ -132,6 +133,38 @@ class WorkerPersistenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(values["started_at"].tzinfo)
         self.assertIn(AIRunStatus.PENDING, params.values())
         session.commit.assert_awaited_once_with()
+
+    async def test_cancelled_run_returns_to_pending_when_arq_can_retry(self):
+        run_id = uuid4()
+        session, factory = mocked_session(run_id)
+
+        with patch("workers.ai_chat_worker.async_session", factory):
+            transitioned = await _transition_cancelled_run(run_id, retry=True)
+
+        self.assertTrue(transitioned)
+        statement = session.scalar.await_args.args[0]
+        values = statement_values(statement)
+        self.assertEqual(values["status"], AIRunStatus.PENDING)
+        self.assertIsNone(values["stage"])
+        self.assertIsNone(values["started_at"])
+        self.assertIsNone(values["completed_at"])
+        self.assertIsNone(values["error_code"])
+        self.assertIn(AIRunStatus.RUNNING, statement.compile().params.values())
+
+    async def test_cancelled_run_fails_after_final_arq_try(self):
+        run_id = uuid4()
+        session, factory = mocked_session(run_id)
+
+        with patch("workers.ai_chat_worker.async_session", factory):
+            transitioned = await _transition_cancelled_run(run_id, retry=False)
+
+        self.assertTrue(transitioned)
+        statement = session.scalar.await_args.args[0]
+        values = statement_values(statement)
+        self.assertEqual(values["status"], AIRunStatus.FAILED)
+        self.assertEqual(values["error_code"], "GENERATION_INTERRUPTED")
+        self.assertIsNotNone(values["completed_at"])
+        self.assertIn(AIRunStatus.RUNNING, statement.compile().params.values())
 
     async def test_success_persists_canvas_and_get_exposes_result(self):
         run_id = uuid4()
@@ -337,7 +370,7 @@ class WorkerPersistenceTests(unittest.IsolatedAsyncioTestCase):
 
         persist_failure.assert_not_awaited()
 
-    async def test_cancelled_error_propagates_without_failure_write(self):
+    async def test_cancelled_error_transitions_for_retry_then_propagates(self):
         run_id = uuid4()
         run = SimpleNamespace(id=run_id, instruction="Design an API")
 
@@ -352,11 +385,35 @@ class WorkerPersistenceTests(unittest.IsolatedAsyncioTestCase):
                 AsyncMock(side_effect=asyncio.CancelledError),
             ),
             patch(
-                "workers.ai_chat_worker._persist_failure_or_raise",
-                AsyncMock(),
-            ) as persist_failure,
+                "workers.ai_chat_worker._transition_cancelled_run",
+                AsyncMock(return_value=True),
+            ) as transition,
         ):
             with self.assertRaises(asyncio.CancelledError):
-                await generate_canvas({}, str(run_id))
+                await generate_canvas({"job_try": 1}, str(run_id))
 
-        persist_failure.assert_not_awaited()
+        transition.assert_awaited_once_with(run_id, retry=True)
+
+    async def test_final_try_cancellation_transitions_to_failed(self):
+        run_id = uuid4()
+        run = SimpleNamespace(id=run_id, instruction="Design an API")
+
+        with (
+            patch("workers.ai_chat_worker._claim_run", AsyncMock(return_value=run)),
+            patch(
+                "workers.ai_chat_worker._set_generation_stage",
+                AsyncMock(return_value=True),
+            ),
+            patch(
+                "workers.ai_chat_worker.generate_design",
+                AsyncMock(side_effect=asyncio.CancelledError),
+            ),
+            patch(
+                "workers.ai_chat_worker._transition_cancelled_run",
+                AsyncMock(return_value=False),
+            ) as transition,
+        ):
+            with self.assertRaises(asyncio.CancelledError):
+                await generate_canvas({"job_try": 5}, str(run_id))
+
+        transition.assert_awaited_once_with(run_id, retry=False)

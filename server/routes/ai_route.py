@@ -18,7 +18,7 @@ from service.ai_run_service import (
     get_ai_run_status,
 )
 
-
+ 
 router = APIRouter(prefix="/api/projects", tags=["ai"])
 
 
@@ -34,6 +34,7 @@ async def post_project_ai_design(
     owner_id: str = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_db),
 ) -> dict:
+    
     try:
         run = await create_ai_design_run(
             session,

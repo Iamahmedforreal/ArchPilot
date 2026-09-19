@@ -12,6 +12,7 @@ from service.gemini_config_service import (
     GeminiCredentialsNotConfiguredError,
     require_gemini_api_key,
 )
+from service.ai_retry_config import model_request_timeout_seconds
 from utils.utils import settings
 
 
@@ -44,7 +45,7 @@ _client: genai.Client | None = None
 
 
 def _request_timeout_seconds() -> int:
-    return settings.gemini_timeout_seconds or 120
+    return model_request_timeout_seconds(settings.gemini_timeout_seconds)
 
 
 def _max_output_tokens() -> int:
@@ -100,9 +101,12 @@ def _build_response_json_schema() -> dict[str, Any]:
     source = AIDesignModelResponse.model_json_schema()
     definitions = source.get("$defs", {})
     supported_keys = {
+        "additionalProperties",
         "anyOf",
         "enum",
         "items",
+        "maximum",
+        "minimum",
         "properties",
         "required",
         "type",

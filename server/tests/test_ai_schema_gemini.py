@@ -41,10 +41,16 @@ class GeminiSchemaCompatibilityTests(unittest.TestCase):
             ["id", "type", "position", "data"],
         )
         self.assertEqual(node_schema["properties"]["type"]["enum"], ["canvasNode"])
+        position_schema = node_schema["properties"]["position"]
+        self.assertEqual(position_schema["properties"]["x"]["minimum"], -10000)
+        self.assertEqual(position_schema["properties"]["x"]["maximum"], 10000)
         edge_schema = canvas_schema["properties"]["edges"]["items"]
         self.assertIn("sourceHandle", edge_schema["required"])
         self.assertNotIn("$ref", str(schema))
-        self.assertNotIn("additionalProperties", str(schema))
+        self.assertFalse(schema["additionalProperties"])
+        schema_text = str(schema)
+        for keyword in ("additionalProperties", "minimum", "maximum"):
+            self.assertIn(keyword, schema_text)
 
     def test_edge_contract_still_rejects_animation(self) -> None:
         with self.assertRaises(ValidationError):

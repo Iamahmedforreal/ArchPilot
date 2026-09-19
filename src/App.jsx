@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { RedirectToSignIn, useAuth } from "@clerk/react"
 import { Plus } from "lucide-react"
 
@@ -10,6 +10,7 @@ import { EditorNavbar } from "@/components/editor/editor-navbar"
 import { ProjectDialogs } from "@/components/editor/project-dialogs"
 import { ProjectSidebar } from "@/components/editor/project-sidebar"
 import { Button } from "@/components/ui/button"
+import { useAiDesign } from "@/hooks/use-ai-design"
 import { useProjectActions } from "@/hooks/use-project-actions"
 import {
   AFTER_SIGN_IN_URL,
@@ -37,6 +38,7 @@ function EditorShell({ pathname, navigate }) {
   const [initialCanvas, setInitialCanvas] = useState(null)
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false)
   const [canvasSaveStatus, setCanvasSaveStatus] = useState("idle")
+  const canvasControllerRef = useRef(null)
   const activeWorkspaceId = pathname.startsWith("/editor/")
     ? pathname.replace("/editor/", "")
     : null
@@ -67,6 +69,11 @@ function EditorShell({ pathname, navigate }) {
       (project) =>
         project.roomId === activeWorkspaceId || project.id === activeWorkspaceId
     ) ?? currentProject
+  const aiDesign = useAiDesign({
+    projectId: projectAccessState === "ready" ? activeWorkspaceId : null,
+    getToken,
+    canvasControllerRef,
+  })
   const handleSelectProject = useCallback(
     (project) => {
       navigate(`/editor/${project.roomId}`)
@@ -277,6 +284,7 @@ function EditorShell({ pathname, navigate }) {
       <section className="relative flex min-h-0 flex-1 overflow-hidden bg-base">
         <EditorCanvas
           key={activeWorkspaceId}
+          canvasControllerRef={canvasControllerRef}
           isTemplatesModalOpen={isTemplatesModalOpen}
           onTemplatesModalOpenChange={setIsTemplatesModalOpen}
           projectId={activeWorkspaceId}
@@ -288,7 +296,12 @@ function EditorShell({ pathname, navigate }) {
           onSaveStatusChange={setCanvasSaveStatus}
         />
         <AiSidebar
+          key={activeWorkspaceId}
           isOpen={isAiSidebarOpen}
+          workflow={aiDesign.workflow}
+          onSubmit={aiDesign.submit}
+          onApplyProposal={aiDesign.applyProposal}
+          onCheckStatusAgain={aiDesign.checkStatusAgain}
           onOpen={() => setIsAiSidebarOpen(true)}
           onClose={() => setIsAiSidebarOpen(false)}
         />

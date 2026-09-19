@@ -11,13 +11,17 @@ from model.db import async_session
 from schema.ai_canvas_schema import AIDesignModelResponse
 from service.ai_context_service import prepare_design_context
 from service.ai_model_service import AIModelError, generate_design
+from service.ai_retry_config import (
+    MODEL_REQUEST_ATTEMPTS,
+    MODEL_RETRY_DELAYS_SECONDS,
+)
 
 logger = logging.getLogger("arq.worker")
 INTERNAL_ERROR_CODE = "INTERNAL_ERROR"
 INTERNAL_ERROR_MESSAGE = "AI generation failed."
-MODEL_GENERATION_ATTEMPTS = 3
-MODEL_RETRY_BASE_DELAY_SECONDS = 2
-MODEL_RETRY_MAX_DELAY_SECONDS = 8
+INTERRUPTED_ERROR_CODE = "GENERATION_INTERRUPTED"
+INTERRUPTED_ERROR_MESSAGE = "AI generation was interrupted."
+WORKER_MAX_TRIES = 5
 RETRYABLE_MODEL_ERROR_CODES = {"MODEL_PROVIDER_BUSY"}
 
 
@@ -29,26 +33,23 @@ async def _generate_design_with_retry(
     context: dict[str, Any],
     run_id: UUID,
 ) -> AIDesignModelResponse:
-    for attempt in range(1, MODEL_GENERATION_ATTEMPTS + 1):
+    for attempt in range(1, MODEL_REQUEST_ATTEMPTS + 1):
         try:
             return await generate_design(context)
         except AIModelError as exc:
             should_retry = (
                 exc.code in RETRYABLE_MODEL_ERROR_CODES
-                and attempt < MODEL_GENERATION_ATTEMPTS
+                and attempt < MODEL_REQUEST_ATTEMPTS
             )
             if not should_retry:
                 raise
 
-            delay = min(
-                MODEL_RETRY_BASE_DELAY_SECONDS * 2 ** (attempt - 1),
-                MODEL_RETRY_MAX_DELAY_SECONDS,
-            )
+            delay = MODEL_RETRY_DELAYS_SECONDS[attempt - 1]
             logger.warning(
                 "AI provider busy run_id=%s attempt=%s/%s retry_in=%ss",
                 run_id,
                 attempt,
-                MODEL_GENERATION_ATTEMPTS,
+                MODEL_REQUEST_ATTEMPTS,
                 delay,
             )
             await asyncio.sleep(delay)
@@ -84,6 +85,40 @@ async def _set_generation_stage(run_id: UUID) -> bool:
                 AIRun.status == AIRunStatus.RUNNING,
             )
             .values(stage="generation")
+            .returning(AIRun.id)
+        )
+        await session.commit()
+        return updated_id is not None
+
+
+async def _transition_cancelled_run(run_id: UUID, *, retry: bool) -> bool:
+    values = (
+        {
+            "status": AIRunStatus.PENDING,
+            "stage": None,
+            "started_at": None,
+            "completed_at": None,
+            "error_code": None,
+            "error_message": None,
+        }
+        if retry
+        else {
+            "status": AIRunStatus.FAILED,
+            "stage": None,
+            "completed_at": _utc_now(),
+            "error_code": INTERRUPTED_ERROR_CODE,
+            "error_message": INTERRUPTED_ERROR_MESSAGE,
+        }
+    )
+
+    async with async_session() as session:
+        updated_id = await session.scalar(
+            update(AIRun)
+            .where(
+                AIRun.id == run_id,
+                AIRun.status == AIRunStatus.RUNNING,
+            )
+            .values(**values)
             .returning(AIRun.id)
         )
         await session.commit()
@@ -215,6 +250,29 @@ async def generate_canvas(ctx: dict[str, Any], run_id: str) -> None:
 
         response = await _generate_design_with_retry(context, parsed_run_id)
     except asyncio.CancelledError:
+        job_try = int(ctx.get("job_try", 1))
+        retry = job_try < WORKER_MAX_TRIES
+        transition_task = asyncio.create_task(
+            _transition_cancelled_run(parsed_run_id, retry=retry)
+        )
+        try:
+            while not transition_task.done():
+                try:
+                    await asyncio.shield(transition_task)
+                except asyncio.CancelledError:
+                    continue
+            transitioned = transition_task.result()
+            logger.info(
+                "AI run cancellation transition run_id=%s retry=%s updated=%s",
+                run_id,
+                retry,
+                transitioned,
+            )
+        except Exception:
+            logger.exception(
+                "Unable to persist AI cancellation transition run_id=%s",
+                run_id,
+            )
         raise
     except AIModelError as exc:
         logger.warning("AI generation failed run_id=%s code=%s", run_id, exc.code)
