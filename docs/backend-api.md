@@ -174,8 +174,10 @@ deduplication, active-run admission checks, or input canvas revision checks.
 `AIRun` does not store an idempotency key or request hash; every accepted
 request is a separate run.
 
-The frontend does not call this endpoint yet. The worker currently loads and
-logs the run but does not call a model or change run status.
+The frontend does not call this endpoint yet. The worker atomically claims the
+run, exposes `preparing` and `generation` stages, calls Gemini, and persists a
+validated proposal or safe failure. Generated proposals remain in `AIRun` and
+are not automatically applied to the project's saved canvas.
 
 The future model response contract is defined and validated separately from the
 HTTP submission response. It supports `generated`, `unsupported`, and
@@ -200,9 +202,18 @@ Returns an owned run's stored status and progress:
 contains the safe stored `code` and `message` only for `FAILED` runs. Pending,
 running, and cancelled responses expose neither field.
 
+An unsupported request fails with `OUT_OF_SCOPE`; a request needing more detail
+fails with `NEEDS_CLARIFICATION`. Provider and execution failures use stable,
+safe codes and messages. `result_canvas_revision` remains null because the
+worker does not save the generated proposal to Vercel Blob.
+
 The endpoint returns `404` for inaccessible projects, missing runs, and runs
 belonging to a different project. It is database-read-only and always sends
 `Cache-Control: no-store`.
+
+Redis delivery failure can leave a committed run `PENDING`, and worker
+interruption after claim can leave it `RUNNING`. Automatic recovery is not
+implemented yet.
 
 ## Backend Responsibilities
 

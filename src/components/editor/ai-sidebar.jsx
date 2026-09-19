@@ -1,5 +1,14 @@
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react"
-import { Download, FileText, Send, Sparkles, X } from "lucide-react"
+import {
+  Download,
+  FileText,
+  LoaderCircle,
+  RefreshCw,
+  Replace,
+  Send,
+  Sparkles,
+  X,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -39,10 +48,57 @@ function ChatBubble({ message }) {
   )
 }
 
+function WorkflowStatus({ workflow, isWorking, onApply, onCheckStatusAgain }) {
+  if (!workflow.statusMessage) {
+    return null
+  }
+
+  return (
+    <div className="flex justify-start" role="status" aria-live="polite">
+      <div className="max-w-[88%] rounded-xl border border-surface-border bg-elevated px-3 py-2 text-sm leading-5 text-ai-text">
+        <div className="flex items-start gap-2">
+          {isWorking && (
+            <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-brand motion-reduce:animate-none" />
+          )}
+          <span className="break-words [overflow-wrap:anywhere]">
+            {workflow.statusMessage}
+          </span>
+        </div>
+        {workflow.phase === "ready" && workflow.requiresReplacement && (
+          <Button
+            type="button"
+            size="sm"
+            onClick={onApply}
+            className="mt-2 h-8 gap-2 rounded-lg"
+          >
+            <Replace className="h-3.5 w-3.5" />
+            Replace canvas
+          </Button>
+        )}
+        {workflow.phase === "paused" && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={onCheckStatusAgain}
+            className="mt-2 h-8 gap-2 rounded-lg border-surface-border"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Check status again
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function AiArchitectTab({
   draft,
   isWorking,
   messages,
+  workflow,
+  onApplyProposal,
+  onCheckStatusAgain,
   onDraftChange,
   onSubmitMessage,
 }) {
@@ -91,6 +147,7 @@ function AiArchitectTab({
                   type="button"
                   className="min-h-11 rounded-full border border-surface-border bg-elevated px-3 py-2 text-left text-xs font-medium leading-4 text-copy-secondary transition-colors hover:border-brand/60 hover:bg-accent-dim hover:text-brand"
                   onClick={() => onSubmitMessage(prompt)}
+                  disabled={isWorking}
                 >
                   {prompt}
                 </button>
@@ -102,7 +159,21 @@ function AiArchitectTab({
             {messages.map((message) => (
               <ChatBubble key={message.id} message={message} />
             ))}
+            <WorkflowStatus
+              workflow={workflow}
+              isWorking={isWorking}
+              onApply={onApplyProposal}
+              onCheckStatusAgain={onCheckStatusAgain}
+            />
           </div>
+        )}
+        {messages.length === 0 && (
+          <WorkflowStatus
+            workflow={workflow}
+            isWorking={isWorking}
+            onApply={onApplyProposal}
+            onCheckStatusAgain={onCheckStatusAgain}
+          />
         )}
       </div>
 
@@ -178,26 +249,27 @@ function SpecsTab() {
   )
 }
 
-function AiSidebar({ isOpen, onClose, onOpen }) {
+function AiSidebar({
+  isOpen,
+  onApplyProposal,
+  onCheckStatusAgain,
+  onClose,
+  onOpen,
+  onSubmit,
+  workflow,
+}) {
   const [activeTab, setActiveTab] = useState("architect")
   const [draft, setDraft] = useState("")
   const [messages, setMessages] = useState([])
-  const [isWorking, setIsWorking] = useState(false)
   const assistantTitleId = useId()
   const triggerRef = useRef(null)
   const dialogRef = useRef(null)
   const closeButtonRef = useRef(null)
-  const responseTimeoutRef = useRef(null)
   const closeAssistant = useEffectEvent(onClose)
   const [isMobileDialog, setIsMobileDialog] = useState(getIsMobileDialogViewport)
 
-  useEffect(() => {
-    return () => {
-      if (responseTimeoutRef.current) {
-        window.clearTimeout(responseTimeoutRef.current)
-      }
-    }
-  }, [])
+  const isWorking =
+    workflow.phase === "submitting" || workflow.phase === "polling"
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -351,22 +423,7 @@ function AiSidebar({ isOpen, onClose, onOpen }) {
       ...currentMessages,
       { id: crypto.randomUUID(), role: "user", content },
     ])
-    setDraft("")
-    setIsWorking(true)
-
-    responseTimeoutRef.current = window.setTimeout(() => {
-      setMessages((currentMessages) => [
-        ...currentMessages,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content:
-            "I can help shape that into a clear architecture. AI generation will connect here next.",
-        },
-      ])
-      setIsWorking(false)
-      responseTimeoutRef.current = null
-    }, 500)
+    onSubmit(content)
   }
 
   return (
@@ -468,6 +525,9 @@ function AiSidebar({ isOpen, onClose, onOpen }) {
             draft={draft}
             isWorking={isWorking}
             messages={messages}
+            workflow={workflow}
+            onApplyProposal={onApplyProposal}
+            onCheckStatusAgain={onCheckStatusAgain}
             onDraftChange={setDraft}
             onSubmitMessage={submitMessage}
           />
