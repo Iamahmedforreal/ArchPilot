@@ -129,6 +129,8 @@ function AiArchitectTab({
     onSubmitMessage()
   }
 
+  const canSubmit = draft.trim().length > 0 && !isWorking
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
@@ -195,12 +197,16 @@ function AiArchitectTab({
             type="button"
             size="icon"
             aria-label="Send message"
+            aria-disabled={!canSubmit}
             title="Send"
             onClick={() => onSubmitMessage()}
-            disabled={!draft.trim() || isWorking}
-            className="h-11 w-11 shrink-0 rounded-xl bg-transparent text-copy-muted shadow-none transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-accent-dim hover:text-brand hover:shadow-[0_10px_24px_rgba(255,96,77,0.16)] focus-visible:ring-brand/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0 disabled:hover:bg-transparent disabled:hover:text-copy-muted disabled:hover:shadow-none"
+            disabled={isWorking}
+            className={cn(
+              "group/button h-11 w-11 shrink-0 rounded-xl bg-transparent text-copy-muted shadow-none transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-accent-dim hover:text-brand focus-visible:ring-brand/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40",
+              canSubmit && "text-brand hover:bg-accent-dim hover:text-brand-hover"
+            )}
           >
-            <Send className="h-6 w-6 transition-transform duration-200 ease-out group-hover/button:translate-x-0.5 group-hover/button:-translate-y-0.5 group-active/button:translate-x-0 group-active/button:translate-y-0" />
+            <Send className="h-6 w-6 transition-transform duration-200 ease-out group-hover/button:translate-x-0.5 group-hover/button:-translate-y-0.5" />
           </Button>
         </div>
       </div>
@@ -412,7 +418,7 @@ function AiSidebar({
     }
   }, [isOpen, isMobileDialog])
 
-  function submitMessage(nextContent = draft) {
+  async function submitMessage(nextContent = draft) {
     const content = nextContent.trim()
 
     if (!content || isWorking) {
@@ -423,7 +429,11 @@ function AiSidebar({
       ...currentMessages,
       { id: crypto.randomUUID(), role: "user", content },
     ])
-    onSubmit(content)
+    const submitted = await onSubmit(content)
+
+    if (submitted) {
+      setDraft("")
+    }
   }
 
   return (
