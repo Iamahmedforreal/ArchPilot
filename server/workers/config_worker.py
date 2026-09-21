@@ -14,5 +14,5 @@ class WorkerSettings:
     redis_settings = redis_settings
     job_timeout = ai_job_timeout_seconds(settings.gemini_timeout_seconds)
     max_tries = WORKER_MAX_TRIES
-    max_jobs = 4
+    max_jobs = 1
     on_shutdown = shutdown_worker

@@ -198,9 +198,9 @@ function AiArchitectTab({
             title="Send"
             onClick={() => onSubmitMessage()}
             disabled={!draft.trim() || isWorking}
-            className="h-11 w-11 shrink-0 rounded-xl bg-transparent text-copy-muted hover:bg-accent-dim hover:text-brand disabled:cursor-not-allowed disabled:opacity-40"
+            className="h-11 w-11 shrink-0 rounded-xl bg-transparent text-copy-muted shadow-none transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-accent-dim hover:text-brand hover:shadow-[0_10px_24px_rgba(255,96,77,0.16)] focus-visible:ring-brand/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0 disabled:hover:bg-transparent disabled:hover:text-copy-muted disabled:hover:shadow-none"
           >
-            <Send className="h-6 w-6" />
+            <Send className="h-6 w-6 transition-transform duration-200 ease-out group-hover/button:translate-x-0.5 group-hover/button:-translate-y-0.5 group-active/button:translate-x-0 group-active/button:translate-y-0" />
           </Button>
         </div>
       </div>

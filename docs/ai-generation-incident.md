@@ -81,6 +81,23 @@ Only provider-capacity failures are retried. The frontend never automatically
 repeats `POST /api/projects/{project_id}/ai/design`, because each POST creates a
 new run.
 
+## 6. Model Returned an Invalid Canvas
+
+**Symptom:** A provider retry completed, but the run failed with
+`MODEL_INVALID_RESPONSE`.
+
+**Cause:** Gemini returned JSON, but the result did not satisfy the complete
+canvas contract. The provider schema checks structure and basic values, while
+Pydantic also checks relationships such as component/icon pairing, supported
+color pairs, unique IDs, valid edge endpoints, and outcome/canvas consistency.
+
+**Fix:** The model instruction now states the fixed edge values and registry
+pairing rules explicitly. Validation failures also log sanitized Pydantic error
+paths internally, without logging the raw model response or changing the safe
+message returned to the frontend. Use the first
+`Gemini response failed canvas validation` line to identify the exact rejected
+field when this error happens again.
+
 ## Cancellation During Generation
 
 ARQ can cancel an active coroutine during worker shutdown or job handling. A

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 from typing import Any
 
 import httpx
@@ -14,6 +15,9 @@ from service.gemini_config_service import (
 )
 from service.ai_retry_config import model_request_timeout_seconds
 from utils.utils import settings
+
+
+logger = logging.getLogger(__name__)
 
 
 SYSTEM_INSTRUCTION = """You are ArchPilot's system-design generator.
@@ -171,6 +175,10 @@ def _validate_response(response: types.GenerateContentResponse) -> AIDesignModel
             )
         return AIDesignModelResponse.model_validate_json(text)
     except ValidationError as exc:
+        logger.warning(
+            "Gemini response failed canvas validation errors=%s",
+            exc.errors(include_url=False, include_input=False),
+        )
         raise AIModelError(
             "MODEL_INVALID_RESPONSE",
             "The model returned an invalid design.",

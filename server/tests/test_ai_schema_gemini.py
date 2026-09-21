@@ -1,9 +1,15 @@
 import unittest
+from types import SimpleNamespace
 
+from google.genai import types
 from pydantic import ValidationError
 
 from schema.ai_canvas_schema import AICanvasEdge
-from service.ai_model_service import _build_response_json_schema
+from service.ai_model_service import (
+    AIModelError,
+    _build_response_json_schema,
+    _validate_response,
+)
 
 
 VALID_EDGE = {
@@ -67,6 +73,28 @@ class GeminiSchemaCompatibilityTests(unittest.TestCase):
                     },
                 }
             )
+
+    def test_invalid_response_logs_validation_paths_but_returns_safe_error(self) -> None:
+        response = SimpleNamespace(
+            prompt_feedback=None,
+            candidates=[SimpleNamespace(finish_reason=types.FinishReason.STOP)],
+            parsed={
+                "outcome": "generated",
+                "explanation": "Generated design",
+                "canvas": {"nodes": [], "edges": []},
+            },
+        )
+
+        with self.assertLogs("service.ai_model_service", level="WARNING") as logs:
+            with self.assertRaises(AIModelError) as raised:
+                _validate_response(response)
+
+        self.assertEqual(raised.exception.code, "MODEL_INVALID_RESPONSE")
+        self.assertEqual(
+            raised.exception.safe_message,
+            "The model returned an invalid design.",
+        )
+        self.assertIn("canvas', 'nodes", logs.output[0])
 
 
 if __name__ == "__main__":
