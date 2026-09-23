@@ -88,6 +88,11 @@ function EditorShell({ pathname, navigate }) {
   const retryCanvasRequest = useCallback(() => {
     setCanvasRequestVersion((version) => version + 1)
   }, [])
+  const saveCanvasNow = useCallback(() => {
+    canvasControllerRef.current?.flushCanvasSave().catch((error) => {
+      console.error(error)
+    })
+  }, [])
 
   useEffect(() => {
     let ignore = false
@@ -324,6 +329,7 @@ function EditorShell({ pathname, navigate }) {
         onOpenTemplates={
           activeWorkspaceId ? () => setIsTemplatesModalOpen(true) : undefined
         }
+        onSaveCanvas={activeWorkspaceId ? saveCanvasNow : undefined}
         projectName={activeProject?.name}
         saveStatus={canvasSaveStatus}
       />

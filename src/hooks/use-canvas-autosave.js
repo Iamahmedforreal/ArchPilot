@@ -1,53 +1,40 @@
 import { useCallback, useEffect, useRef } from "react"
 
-import { fetchCanvas, saveCanvas } from "@/lib/project-api"
+import { saveCanvas } from "@/lib/project-api"
 
-const AUTOSAVE_DELAY_MS = 800
+const AUTOSAVE_DELAY_MS = 2000
 
-function serializeCanvas(nodes, edges) {
-  return JSON.stringify({ nodes, edges })
-}
-
-function hasChangedAfterSave(currentItem, savedItem) {
-  return JSON.stringify(currentItem) !== JSON.stringify(savedItem)
-}
-
-function reconcileItems(serverItems, savedItems, currentItems) {
-  const savedById = new Map(savedItems.map((item) => [item.id, item]))
-  const currentById = new Map(currentItems.map((item) => [item.id, item]))
-  const reconciledById = new Map(serverItems.map((item) => [item.id, item]))
-
-  for (const savedItem of savedItems) {
-    if (!currentById.has(savedItem.id)) {
-      reconciledById.delete(savedItem.id)
-    }
-  }
-
-  for (const currentItem of currentItems) {
-    const savedItem = savedById.get(currentItem.id)
-
-    if (!savedItem || hasChangedAfterSave(currentItem, savedItem)) {
-      reconciledById.set(currentItem.id, currentItem)
-    }
-  }
-
-  return Array.from(reconciledById.values())
-}
-
-function reconcileCanvasConflict(serverCanvas, savedCanvas, currentCanvas) {
+function stripTransientCanvasState(nodes, edges) {
   return {
-    nodes: reconcileItems(
-      serverCanvas.nodes ?? [],
-      savedCanvas.nodes ?? [],
-      currentCanvas.nodes ?? []
-    ),
-    edges: reconcileItems(
-      serverCanvas.edges ?? [],
-      savedCanvas.edges ?? [],
-      currentCanvas.edges ?? []
-    ),
-    revision: serverCanvas.revision ?? null,
+    nodes: nodes.map((node) => {
+      const nextNode = { ...node }
+      delete nextNode.selected
+      delete nextNode.dragging
+
+      return {
+        ...nextNode,
+        position: { ...node.position },
+        data: {
+          ...node.data,
+          size: node.data?.size ? { ...node.data.size } : undefined,
+        },
+      }
+    }),
+    edges: edges.map((edge) => {
+      const nextEdge = { ...edge }
+      delete nextEdge.selected
+
+      return {
+        ...nextEdge,
+        style: edge.style ? { ...edge.style } : undefined,
+        markerEnd: edge.markerEnd ? { ...edge.markerEnd } : undefined,
+      }
+    }),
   }
+}
+
+function serializeCanvasSnapshot(snapshot) {
+  return JSON.stringify(snapshot)
 }
 
 function useCanvasAutosave({
@@ -58,207 +45,198 @@ function useCanvasAutosave({
   enabled,
   initialRevision,
   baselineKey,
-  onConflict,
+  isSavePaused = false,
   onStatusChange,
 }) {
-  const lastSavedCanvasRef = useRef(null)
-  const lastSavedRevisionRef = useRef(null)
-  const saveRequestRef = useRef(0)
-  const pendingSaveTimeoutRef = useRef(null)
   const baselineKeyRef = useRef(null)
-  const isReconcilingConflictRef = useRef(false)
-  const currentCanvasRef = useRef({ nodes, edges })
+  const latestSnapshotRef = useRef(stripTransientCanvasState(nodes, edges))
+  const latestSerializedRef = useRef(null)
+  const lastConfirmedSerializedRef = useRef(null)
+  const lastConfirmedRevisionRef = useRef(null)
+  const pendingSaveTimeoutRef = useRef(null)
+  const isSaveInFlightRef = useRef(false)
+  const queuedManualSaveRef = useRef(false)
+  const saveRequestRef = useRef(0)
+
+  const clearPendingTimer = useCallback(() => {
+    if (pendingSaveTimeoutRef.current !== null) {
+      window.clearTimeout(pendingSaveTimeoutRef.current)
+      pendingSaveTimeoutRef.current = null
+    }
+  }, [])
+
+  const saveLatestCanvas = useCallback(
+    async ({ manual = false } = {}) => {
+      clearPendingTimer()
+
+      if (!projectId || !enabled) {
+        return lastConfirmedRevisionRef.current
+      }
+
+      if (isSaveInFlightRef.current) {
+        if (manual) {
+          queuedManualSaveRef.current = true
+        }
+        onStatusChange("unsaved")
+        return lastConfirmedRevisionRef.current
+      }
+
+      if (latestSerializedRef.current === lastConfirmedSerializedRef.current) {
+        queuedManualSaveRef.current = false
+        onStatusChange("saved")
+        return lastConfirmedRevisionRef.current
+      }
+
+      let shouldSaveAgain = true
+      let shouldBypassPause = manual
+      let latestRevision = lastConfirmedRevisionRef.current
+
+      while (shouldSaveAgain) {
+        shouldSaveAgain = false
+
+        if (latestSerializedRef.current === lastConfirmedSerializedRef.current) {
+          queuedManualSaveRef.current = false
+          onStatusChange("saved")
+          return lastConfirmedRevisionRef.current
+        }
+
+        const requestId = saveRequestRef.current + 1
+        saveRequestRef.current = requestId
+        isSaveInFlightRef.current = true
+        queuedManualSaveRef.current = false
+        const snapshot = latestSnapshotRef.current
+        const serializedSnapshot = latestSerializedRef.current
+        onStatusChange("saving")
+
+        try {
+          const token = await getToken()
+          if (!token) {
+            throw new Error("Missing project session token")
+          }
+
+          const saveResult = await saveCanvas(
+            token,
+            projectId,
+            snapshot,
+            lastConfirmedRevisionRef.current
+          )
+          if (requestId !== saveRequestRef.current) {
+            return lastConfirmedRevisionRef.current
+          }
+
+          latestRevision = saveResult.revision
+          lastConfirmedRevisionRef.current = saveResult.revision
+          lastConfirmedSerializedRef.current = serializedSnapshot
+        } catch (error) {
+          if (requestId === saveRequestRef.current) {
+            onStatusChange(error.status === 409 ? "conflict" : "error")
+          }
+          throw error
+        } finally {
+          if (requestId === saveRequestRef.current) {
+            isSaveInFlightRef.current = false
+          }
+        }
+
+        if (latestSerializedRef.current === serializedSnapshot) {
+          queuedManualSaveRef.current = false
+          onStatusChange("saved")
+          return latestRevision
+        }
+
+        onStatusChange("unsaved")
+        shouldBypassPause = shouldBypassPause || queuedManualSaveRef.current
+        if (!isSavePaused || shouldBypassPause) {
+          shouldSaveAgain = true
+        }
+      }
+
+      return latestRevision
+    },
+    [clearPendingTimer, enabled, getToken, isSavePaused, onStatusChange, projectId]
+  )
+
+  const scheduleAutosave = useCallback(() => {
+    clearPendingTimer()
+
+    if (!projectId || !enabled || isSavePaused) {
+      return
+    }
+    if (latestSerializedRef.current === lastConfirmedSerializedRef.current) {
+      return
+    }
+    if (isSaveInFlightRef.current) {
+      return
+    }
+
+    pendingSaveTimeoutRef.current = window.setTimeout(() => {
+      pendingSaveTimeoutRef.current = null
+      saveLatestCanvas().catch((error) => {
+        console.error(error)
+      })
+    }, AUTOSAVE_DELAY_MS)
+  }, [clearPendingTimer, enabled, isSavePaused, projectId, saveLatestCanvas])
 
   useEffect(() => {
-    currentCanvasRef.current = { nodes, edges }
-  }, [edges, nodes])
-
-  useEffect(() => {
-    saveRequestRef.current += 1
+    const snapshot = stripTransientCanvasState(nodes, edges)
+    const serializedSnapshot = serializeCanvasSnapshot(snapshot)
+    latestSnapshotRef.current = snapshot
+    latestSerializedRef.current = serializedSnapshot
 
     if (!enabled || !projectId) {
-      lastSavedCanvasRef.current = null
-      lastSavedRevisionRef.current = null
+      clearPendingTimer()
       baselineKeyRef.current = null
-      isReconcilingConflictRef.current = false
+      lastConfirmedSerializedRef.current = null
+      lastConfirmedRevisionRef.current = null
+      isSaveInFlightRef.current = false
+      queuedManualSaveRef.current = false
       return
     }
 
-    if (
-      baselineKeyRef.current === baselineKey ||
-      isReconcilingConflictRef.current
-    ) {
+    if (baselineKeyRef.current !== baselineKey) {
+      clearPendingTimer()
+      baselineKeyRef.current = baselineKey
+      lastConfirmedSerializedRef.current = serializedSnapshot
+      lastConfirmedRevisionRef.current = initialRevision ?? null
+      isSaveInFlightRef.current = false
+      queuedManualSaveRef.current = false
+      onStatusChange("idle")
       return
     }
 
-    baselineKeyRef.current = baselineKey
-    lastSavedCanvasRef.current = serializeCanvas(nodes, edges)
-    lastSavedRevisionRef.current = initialRevision ?? null
-    onStatusChange("idle")
+    if (serializedSnapshot !== lastConfirmedSerializedRef.current) {
+      onStatusChange("unsaved")
+      scheduleAutosave()
+    }
   }, [
     baselineKey,
+    clearPendingTimer,
     edges,
     enabled,
     initialRevision,
     nodes,
     onStatusChange,
     projectId,
+    scheduleAutosave,
   ])
 
   useEffect(() => {
-    if (!projectId || !enabled || isReconcilingConflictRef.current) {
-      return
+    if (!isSavePaused) {
+      scheduleAutosave()
     }
+  }, [isSavePaused, scheduleAutosave])
 
-    const serializedCanvas = serializeCanvas(nodes, edges)
-    if (serializedCanvas === lastSavedCanvasRef.current) {
-      return
-    }
-
-    const requestId = saveRequestRef.current + 1
-    saveRequestRef.current = requestId
-    onStatusChange("saving")
-
-    if (pendingSaveTimeoutRef.current !== null) {
-      window.clearTimeout(pendingSaveTimeoutRef.current)
-      pendingSaveTimeoutRef.current = null
-    }
-
-    pendingSaveTimeoutRef.current = window.setTimeout(async () => {
-      pendingSaveTimeoutRef.current = null
-
-      try {
-        const token = await getToken()
-        if (!token) {
-          throw new Error("Missing project session token")
-        }
-
-        const saveResult = await saveCanvas(
-          token,
-          projectId,
-          JSON.parse(serializedCanvas),
-          lastSavedRevisionRef.current
-        )
-        if (requestId !== saveRequestRef.current) {
-          return
-        }
-
-        lastSavedCanvasRef.current = serializedCanvas
-        lastSavedRevisionRef.current = saveResult.revision
-        onStatusChange("saved")
-      } catch (error) {
-        if (requestId === saveRequestRef.current) {
-          if (error.status === 409) {
-            isReconcilingConflictRef.current = true
-
-            try {
-              const token = await getToken()
-              if (!token) {
-                throw new Error("Missing project session token", {
-                  cause: error,
-                })
-              }
-
-              const savedCanvas = await fetchCanvas(token, projectId)
-              const serverCanvas = savedCanvas ?? {
-                nodes: [],
-                edges: [],
-                revision: null,
-              }
-              const savedAttemptCanvas = JSON.parse(serializedCanvas)
-              const reconciledCanvas = reconcileCanvasConflict(
-                serverCanvas,
-                savedAttemptCanvas,
-                currentCanvasRef.current
-              )
-              await onConflict?.(reconciledCanvas)
-
-              const serverSerializedCanvas = serializeCanvas(
-                serverCanvas.nodes,
-                serverCanvas.edges
-              )
-              const reconciledSerializedCanvas = serializeCanvas(
-                reconciledCanvas.nodes,
-                reconciledCanvas.edges
-              )
-              lastSavedCanvasRef.current = serializeCanvas(
-                serverCanvas.nodes,
-                serverCanvas.edges
-              )
-              lastSavedRevisionRef.current = serverCanvas.revision
-              onStatusChange(
-                reconciledSerializedCanvas === serverSerializedCanvas
-                  ? "saved"
-                  : "saving"
-              )
-              return
-            } catch (refreshError) {
-              console.error(refreshError)
-            } finally {
-              isReconcilingConflictRef.current = false
-            }
-          }
-
-          console.error(error)
-          onStatusChange("error")
-        }
-      }
-    }, AUTOSAVE_DELAY_MS)
-
+  useEffect(() => {
     return () => {
-      if (pendingSaveTimeoutRef.current !== null) {
-        window.clearTimeout(pendingSaveTimeoutRef.current)
-        pendingSaveTimeoutRef.current = null
-      }
+      clearPendingTimer()
+      saveRequestRef.current += 1
     }
-  }, [edges, enabled, getToken, nodes, onConflict, onStatusChange, projectId])
+  }, [clearPendingTimer])
 
   const flushCanvasSave = useCallback(async () => {
-    if (pendingSaveTimeoutRef.current !== null) {
-      window.clearTimeout(pendingSaveTimeoutRef.current)
-      pendingSaveTimeoutRef.current = null
-    }
-
-    if (!projectId || !enabled || isReconcilingConflictRef.current) {
-      return lastSavedRevisionRef.current
-    }
-
-    const serializedCanvas = serializeCanvas(nodes, edges)
-    if (serializedCanvas === lastSavedCanvasRef.current) {
-      return lastSavedRevisionRef.current
-    }
-
-    const requestId = saveRequestRef.current + 1
-    saveRequestRef.current = requestId
-    onStatusChange("saving")
-
-    try {
-      const token = await getToken()
-      if (!token) {
-        throw new Error("Missing project session token")
-      }
-
-      const saveResult = await saveCanvas(
-        token,
-        projectId,
-        JSON.parse(serializedCanvas),
-        lastSavedRevisionRef.current
-      )
-      if (requestId !== saveRequestRef.current) {
-        return lastSavedRevisionRef.current
-      }
-
-      lastSavedCanvasRef.current = serializedCanvas
-      lastSavedRevisionRef.current = saveResult.revision
-      onStatusChange("saved")
-      return saveResult.revision
-    } catch (error) {
-      if (requestId === saveRequestRef.current) {
-        onStatusChange("error")
-      }
-      throw error
-    }
-  }, [edges, enabled, getToken, nodes, onStatusChange, projectId])
+    clearPendingTimer()
+    return await saveLatestCanvas({ manual: true })
+  }, [clearPendingTimer, saveLatestCanvas])
 
   return { flushCanvasSave }
 }

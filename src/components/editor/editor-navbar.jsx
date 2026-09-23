@@ -1,5 +1,13 @@
 import { UserButton } from "@clerk/react"
-import { Check, CircleAlert, CloudUpload, LayoutTemplate, PanelLeft, Sparkles } from "lucide-react"
+import {
+  Check,
+  CircleAlert,
+  CloudUpload,
+  LayoutTemplate,
+  PanelLeft,
+  Save,
+  Sparkles,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -10,14 +18,17 @@ function EditorNavbar({
   onToggleSidebar,
   onToggleAiSidebar,
   onOpenTemplates,
+  onSaveCanvas,
   projectName = null,
   saveStatus = "idle",
   className,
 }) {
   const saveStatusDetails = {
+    unsaved: { Icon: CircleAlert, label: "Unsaved changes" },
     saving: { Icon: CloudUpload, label: "Saving canvas" },
     saved: { Icon: Check, label: "Canvas saved" },
     error: { Icon: CircleAlert, label: "Canvas save failed" },
+    conflict: { Icon: CircleAlert, label: "Canvas revision conflict" },
   }
   const currentSaveStatus = saveStatusDetails[saveStatus]
 
@@ -55,7 +66,7 @@ function EditorNavbar({
           <span
             className={cn(
               "inline-flex h-8 items-center gap-1.5 rounded-xl px-2 text-xs font-medium",
-              saveStatus === "error"
+              saveStatus === "error" || saveStatus === "conflict"
                 ? "text-brand"
                 : "text-copy-muted"
             )}
@@ -67,6 +78,19 @@ function EditorNavbar({
             />
             <span className="hidden lg:inline">{currentSaveStatus.label}</span>
           </span>
+        )}
+        {onSaveCanvas && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Save canvas"
+            title="Save canvas"
+            onClick={onSaveCanvas}
+            className="h-9 w-9 rounded-xl text-copy-secondary hover:bg-subtle hover:text-brand"
+          >
+            <Save className="h-5 w-5" />
+          </Button>
         )}
         {onOpenTemplates && (
           <Button

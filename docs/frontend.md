@@ -27,7 +27,7 @@ live in `src/lib/auth-routes.js`.
 | `src/lib/project-api.js` | All current HTTP calls to the backend |
 | `src/lib/ai-canvas.js` | Defensive checks for generated canvas proposals |
 | `src/hooks/use-project-actions.js` | Project list cache and create/rename/delete workflows |
-| `src/hooks/use-canvas-autosave.js` | Debounced canvas saves and `409` conflict reconciliation |
+| `src/hooks/use-canvas-autosave.js` | Reliable canvas dirty-state tracking, autosave, manual save, and conflict status |
 | `src/hooks/use-ai-design.js` | AI submission, polling, progress, and proposal application |
 | `src/components/editor/editor-canvas.jsx` | React Flow nodes, edges, editing, history, templates, and palette |
 | `src/components/editor/project-sidebar.jsx` | Project navigation |
@@ -75,7 +75,7 @@ When a user opens `/editor/{project_id}`:
 3. An inaccessible project shows the access-denied view.
 4. A missing canvas becomes an empty canvas.
 5. A saved canvas hydrates `EditorCanvas` before autosave starts.
-6. Canvas changes are saved after an 800 ms debounce.
+6. Meaningful canvas changes are marked unsaved and autosaved after the editor is idle for about 2 seconds.
 
 ## Canvas Save Flow
 
@@ -84,15 +84,30 @@ sends the last known revision.
 
 ```text
 Canvas edit
-    -> useCanvasAutosave waits 800 ms
-    -> saveCanvas sends nodes, edges, revision
+    -> useCanvasAutosave marks Unsaved
+    -> waits 2 seconds after meaningful edits stop
+    -> saveCanvas sends latest nodes, edges, revision
     -> backend writes Vercel Blob
     -> frontend stores the new revision
 ```
 
-If the backend returns `409`, the hook reloads the server canvas, preserves
-local changes made after the failed save, and retries through the normal
-autosave cycle.
+Selection-only changes are stripped before comparison and are not saved.
+Dragging updates the canvas immediately, but autosave waits until the node drag
+ends before starting the idle timer.
+
+Only one canvas PUT is in flight for the editor. If the canvas changes while a
+PUT is running, the navbar remains `Unsaved`; after the first request succeeds,
+the hook sends the latest state with the returned revision. The navbar shows
+`Saved` only when the server has confirmed the current canvas snapshot.
+
+The navbar Save button calls the same save function immediately. It cancels any
+pending autosave timer; if a PUT is already running, the latest state is queued
+and saved as soon as that request completes.
+
+If the backend returns `409`, the hook keeps the local canvas dirty and shows a
+revision conflict. It does not silently overwrite or reconcile the server
+version. Network failures also keep the canvas dirty and leave the Save button
+available for retry.
 
 The canvas controller also exposes `flushCanvasSave()` for workflows that need
 the newest saved revision before continuing. The spec-generation flow uses this
