@@ -64,6 +64,7 @@ function useCanvasAutosave({
   const lastSavedCanvasRef = useRef(null)
   const lastSavedRevisionRef = useRef(null)
   const saveRequestRef = useRef(0)
+  const pendingSaveTimeoutRef = useRef(null)
   const baselineKeyRef = useRef(null)
   const isReconcilingConflictRef = useRef(false)
   const currentCanvasRef = useRef({ nodes, edges })
@@ -118,7 +119,14 @@ function useCanvasAutosave({
     saveRequestRef.current = requestId
     onStatusChange("saving")
 
-    const saveTimeout = window.setTimeout(async () => {
+    if (pendingSaveTimeoutRef.current !== null) {
+      window.clearTimeout(pendingSaveTimeoutRef.current)
+      pendingSaveTimeoutRef.current = null
+    }
+
+    pendingSaveTimeoutRef.current = window.setTimeout(async () => {
+      pendingSaveTimeoutRef.current = null
+
       try {
         const token = await getToken()
         if (!token) {
@@ -197,10 +205,20 @@ function useCanvasAutosave({
       }
     }, AUTOSAVE_DELAY_MS)
 
-    return () => window.clearTimeout(saveTimeout)
+    return () => {
+      if (pendingSaveTimeoutRef.current !== null) {
+        window.clearTimeout(pendingSaveTimeoutRef.current)
+        pendingSaveTimeoutRef.current = null
+      }
+    }
   }, [edges, enabled, getToken, nodes, onConflict, onStatusChange, projectId])
 
   const flushCanvasSave = useCallback(async () => {
+    if (pendingSaveTimeoutRef.current !== null) {
+      window.clearTimeout(pendingSaveTimeoutRef.current)
+      pendingSaveTimeoutRef.current = null
+    }
+
     if (!projectId || !enabled || isReconcilingConflictRef.current) {
       return lastSavedRevisionRef.current
     }
@@ -214,25 +232,32 @@ function useCanvasAutosave({
     saveRequestRef.current = requestId
     onStatusChange("saving")
 
-    const token = await getToken()
-    if (!token) {
-      throw new Error("Missing project session token")
-    }
+    try {
+      const token = await getToken()
+      if (!token) {
+        throw new Error("Missing project session token")
+      }
 
-    const saveResult = await saveCanvas(
-      token,
-      projectId,
-      JSON.parse(serializedCanvas),
-      lastSavedRevisionRef.current
-    )
-    if (requestId !== saveRequestRef.current) {
-      return lastSavedRevisionRef.current
-    }
+      const saveResult = await saveCanvas(
+        token,
+        projectId,
+        JSON.parse(serializedCanvas),
+        lastSavedRevisionRef.current
+      )
+      if (requestId !== saveRequestRef.current) {
+        return lastSavedRevisionRef.current
+      }
 
-    lastSavedCanvasRef.current = serializedCanvas
-    lastSavedRevisionRef.current = saveResult.revision
-    onStatusChange("saved")
-    return saveResult.revision
+      lastSavedCanvasRef.current = serializedCanvas
+      lastSavedRevisionRef.current = saveResult.revision
+      onStatusChange("saved")
+      return saveResult.revision
+    } catch (error) {
+      if (requestId === saveRequestRef.current) {
+        onStatusChange("error")
+      }
+      throw error
+    }
   }, [edges, enabled, getToken, nodes, onStatusChange, projectId])
 
   return { flushCanvasSave }
