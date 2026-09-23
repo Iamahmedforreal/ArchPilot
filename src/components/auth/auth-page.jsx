@@ -14,14 +14,16 @@ const clerkFormAppearance = {
     borderRadius: "var(--radius)",
   },
   elements: {
-    card: "bg-surface border border-surface-border shadow-2xl",
+    rootBox: "w-full max-w-[calc(100vw-1.5rem)] sm:max-w-md",
+    card:
+      "w-full rounded-2xl border border-surface-border bg-surface shadow-2xl sm:rounded-3xl",
     headerTitle: "text-copy-primary",
     headerSubtitle: "text-copy-muted",
     socialButtonsBlockButton:
-      "bg-elevated border-surface-border text-copy-primary hover:bg-subtle",
-    formButtonPrimary: "bg-brand text-background hover:bg-brand-hover",
+      "h-9 bg-elevated border-surface-border text-copy-primary hover:bg-subtle sm:h-10",
+    formButtonPrimary: "h-10 bg-brand text-background hover:bg-brand-hover",
     formFieldInput:
-      "bg-elevated border-border-subtle text-copy-primary placeholder:text-copy-faint",
+      "h-10 bg-elevated border-border-subtle text-copy-primary placeholder:text-copy-faint",
     footerActionText: "text-copy-muted",
     footerActionLink: "text-brand hover:text-brand-hover",
   },
@@ -30,38 +32,42 @@ const clerkFormAppearance = {
 const authFeatures = [
   {
     title: "Architecture maps",
-    description: "Map architecture decisions visually.",
+    description: "Turn early system decisions into an editable canvas.",
   },
   {
-    title: "Context-aware editor",
-    description: "Keep system context close to the editor.",
+    title: "AI canvas draft",
+    description: "Generate components and connections from a plain prompt.",
   },
   {
-    title: "Less implementation drift",
-    description: "Move from idea to implementation with less drift.",
+    title: "Project memory",
+    description: "Keep diagrams and generated specs tied to each workspace.",
   },
 ]
 
 function AuthIntro() {
   return (
-    <section className="order-1 flex border-b border-surface-border bg-base px-6 py-10 lg:min-h-screen lg:flex-col lg:justify-center lg:border-b-0 lg:border-r lg:px-12">
+    <section className="flex shrink-0 flex-col border-b border-surface-border bg-base px-4 py-8 sm:px-6 sm:py-10 lg:min-h-dvh lg:justify-center lg:border-b-0 lg:border-r lg:px-12 lg:py-10">
       <div className="mx-auto w-full max-w-xl lg:mx-0">
-        <p className="font-mono text-xs font-medium uppercase tracking-[0.24em] text-brand">
+        <p className="font-mono text-xs font-medium uppercase text-brand">
           ArchPilot
         </p>
-        <h1 className="mt-6 max-w-sm text-3xl font-semibold tracking-tight text-copy-primary">
+        <h1 className="mt-6 max-w-md text-balance text-4xl font-semibold leading-tight text-copy-primary">
           Design systems before the first line ships.
         </h1>
-        <ul className="mt-10 grid border border-surface-border sm:grid-cols-3 lg:grid-cols-1">
+        <p className="mt-5 max-w-md text-pretty text-sm leading-6 text-copy-muted">
+          Sign in to create project workspaces, generate an architecture canvas,
+          and keep each design ready for refinement.
+        </p>
+        <ul className="mt-8 grid gap-3 sm:grid-cols-3 lg:mt-10 lg:grid-cols-1">
           {authFeatures.map((feature) => (
             <li
               key={feature.title}
-              className="group min-h-40 border-t border-surface-border p-6 transition-[background-color,transform] duration-200 first:border-t-0 hover:-translate-y-1 hover:bg-surface sm:border-l sm:border-t-0 sm:first:border-l-0 lg:border-l-0 lg:border-t lg:first:border-t-0"
+              className="rounded-2xl border border-surface-border bg-surface/80 p-5 shadow-lg"
             >
-              <p className="font-mono text-xs font-medium uppercase tracking-[0.18em] text-brand">
+              <p className="font-mono text-xs font-medium uppercase text-brand">
                 {feature.title}
               </p>
-              <p className="mt-5 text-sm leading-6 text-copy-muted transition-colors duration-200 group-hover:text-copy-secondary">
+              <p className="mt-3 text-pretty text-sm leading-6 text-copy-muted">
                 {feature.description}
               </p>
             </li>
@@ -76,9 +82,9 @@ function AuthPage({ mode }) {
   const AuthComponent = mode === "sign-up" ? SignUp : SignIn
 
   return (
-    <main className="grid min-h-screen bg-base text-copy-primary lg:grid-cols-[minmax(0,0.9fr)_minmax(420px,1fr)]">
+    <main className="flex min-h-svh flex-col bg-base text-copy-primary lg:grid lg:min-h-dvh lg:grid-cols-[minmax(0,0.9fr)_minmax(420px,1fr)]">
       <AuthIntro />
-      <section className="order-2 flex min-h-[70vh] items-center justify-center px-6 py-10 lg:min-h-screen">
+      <section className="flex min-h-svh flex-col items-center justify-start gap-4 overflow-y-auto bg-dotted px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-6 sm:py-8 lg:min-h-dvh lg:justify-center lg:bg-base lg:px-10">
         <AuthComponent
           path={mode === "sign-up" ? SIGN_UP_URL : SIGN_IN_URL}
           routing="path"

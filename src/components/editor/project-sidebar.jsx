@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react"
-import { MoreHorizontal, PanelLeft, Plus, Search, Trash2 } from "lucide-react"
+import { MoreHorizontal, Plus, Search, Trash2, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -51,7 +51,7 @@ function ProjectSidebar({
           {project.name}
         </button>
         {project.owned && (
-          <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
             <Button
               type="button"
               variant="ghost"
@@ -93,15 +93,14 @@ function ProjectSidebar({
         aria-hidden={!isOpen}
         inert={isOpen ? undefined : ""}
         className={cn(
-          "fixed bottom-0 left-0 top-0 z-40 flex w-[240px] max-w-[calc(100vw-0.75rem)] flex-col border border-surface-border bg-base/95 p-3 text-sidebar-foreground shadow-2xl backdrop-blur-xl transition-transform duration-200 ease-out md:bottom-3 md:left-3 md:top-[3.75rem] md:rounded-[1.4rem]",
-          isOpen ? "translate-x-0" : "-translate-x-full",
+          "fixed inset-x-2 bottom-2 z-40 flex max-h-[calc(100dvh_-_1rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] min-h-[min(32rem,calc(100dvh_-_1rem))] max-w-[calc(100vw_-_1rem)] flex-col rounded-2xl border border-surface-border bg-base/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-sidebar-foreground shadow-2xl backdrop-blur-xl transition-transform duration-200 ease-out md:bottom-3 md:left-3 md:right-auto md:top-[3.75rem] md:min-h-0 md:w-[240px] md:max-w-[calc(100vw_-_0.75rem)] md:rounded-[1.4rem] md:pb-3",
+          isOpen
+            ? "translate-y-0 md:translate-x-0"
+            : "pointer-events-none translate-y-[calc(100%+1rem)] md:-translate-x-full md:translate-y-0",
           className
         )}
       >
         <div className="flex shrink-0 items-center gap-3 border-b border-surface-border pb-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-surface-border bg-elevated text-brand">
-            <PanelLeft className="h-4 w-4" />
-          </div>
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-sm font-semibold text-copy-primary">
               ArchPilot
@@ -115,21 +114,21 @@ function ProjectSidebar({
               type="button"
               variant="ghost"
               size="icon-sm"
-              aria-label="Search projects"
-              onClick={() => searchInputRef.current?.focus()}
-              className="text-copy-muted hover:bg-subtle hover:text-copy-primary"
-            >
-              <Search className="h-5 w-5" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
               aria-label="New project"
               onClick={onCreateProject}
               className="text-copy-muted hover:bg-subtle hover:text-copy-primary"
             >
               <Plus className="h-5 w-5" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Close project sidebar"
+              onClick={onClose}
+              className="text-copy-muted hover:bg-subtle hover:text-copy-primary md:hidden"
+            >
+              <X className="h-5 w-5" />
             </Button>
           </div>
         </div>
@@ -149,16 +148,6 @@ function ProjectSidebar({
 
           <div className="mb-2 flex items-center justify-between">
             <p className="text-sm font-semibold text-copy-muted">Recent Projects</p>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label="Close project sidebar"
-              onClick={onClose}
-              className="text-copy-muted hover:bg-subtle hover:text-copy-primary md:hidden"
-            >
-              <PanelLeft className="h-4 w-4" />
-            </Button>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
