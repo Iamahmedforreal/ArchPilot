@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
-from model.ai import AIRunStatus
+from model.ai import AIRunKind, AIRunStatus
 from schema.ai_canvas_schema import AIDesignModelResponse
 from service.ai_context_service import SMALL_CANVAS_EXAMPLE
 from service.ai_model_service import AIModelError
@@ -186,6 +186,7 @@ class WorkerPersistenceTests(unittest.IsolatedAsyncioTestCase):
 
         stored_run = SimpleNamespace(
             id=run_id,
+            kind=AIRunKind.DESIGN,
             status=AIRunStatus.SUCCEEDED,
             stage=None,
             proposal_json=values["proposal_json"],

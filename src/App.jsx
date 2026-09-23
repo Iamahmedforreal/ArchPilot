@@ -297,7 +297,10 @@ function EditorShell({ pathname, navigate }) {
         />
         <AiSidebar
           key={activeWorkspaceId}
+          canvasControllerRef={canvasControllerRef}
+          getToken={getToken}
           isOpen={isAiSidebarOpen}
+          projectId={activeWorkspaceId}
           workflow={aiDesign.workflow}
           onSubmit={aiDesign.submit}
           onApplyProposal={aiDesign.applyProposal}

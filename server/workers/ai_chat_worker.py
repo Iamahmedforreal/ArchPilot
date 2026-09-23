@@ -4,13 +4,14 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import update
+from sqlalchemy import select, update
 
-from model.ai import AIRun, AIRunStatus
+from model.ai import AIRun, AIRunKind, AIRunStatus, FileBlob
 from model.db import async_session
 from schema.ai_canvas_schema import AIDesignModelResponse
+from service.file_blob_service import save_markdown_file
 from service.ai_context_service import prepare_design_context
-from service.ai_model_service import AIModelError, generate_design
+from service.ai_model_service import AIModelError, generate_design, generate_spec_markdown
 from service.ai_retry_config import (
     MODEL_REQUEST_ATTEMPTS,
     MODEL_RETRY_DELAYS_SECONDS,
@@ -57,12 +58,16 @@ async def _generate_design_with_retry(
     raise RuntimeError("Model retry loop ended without a response")
 
 
-async def _claim_run(run_id: UUID) -> AIRun | None:
+async def _claim_run(
+    run_id: UUID,
+    kind: AIRunKind = AIRunKind.DESIGN,
+) -> AIRun | None:
     async with async_session() as session:
         run = await session.scalar(
             update(AIRun)
             .where(
                 AIRun.id == run_id,
+                AIRun.kind == kind,
                 AIRun.status == AIRunStatus.PENDING,
             )
             .values(
@@ -223,6 +228,45 @@ async def _persist_response(
     )
 
 
+async def _persist_spec_success(
+    run_id: UUID,
+    blob_url: str,
+) -> bool:
+    async with async_session() as session:
+        run = await session.scalar(
+            select(AIRun).where(
+                AIRun.id == run_id,
+                AIRun.kind == AIRunKind.SPEC,
+                AIRun.status == AIRunStatus.RUNNING,
+            )
+        )
+        if run is None:
+            await session.rollback()
+            return False
+
+        file_blob = await session.scalar(
+            select(FileBlob).where(
+                FileBlob.project_id == run.project_id,
+                FileBlob.blob_url == blob_url,
+            )
+        )
+        if file_blob is None:
+            file_blob = FileBlob(project_id=run.project_id, blob_url=blob_url)
+            session.add(file_blob)
+            await session.flush()
+
+        run.file_blob_id = file_blob.id
+        run.proposal_json = None
+        run.explanation = None
+        run.status = AIRunStatus.SUCCEEDED
+        run.stage = None
+        run.completed_at = _utc_now()
+        run.error_code = None
+        run.error_message = None
+        await session.commit()
+        return True
+
+
 async def generate_canvas(ctx: dict[str, Any], run_id: str) -> None:
     logger.info("Received canvas generation run_id=%s", run_id)
 
@@ -302,3 +346,96 @@ async def generate_canvas(ctx: dict[str, Any], run_id: str) -> None:
         return
 
     logger.info("Completed AI run run_id=%s outcome=%s", run_id, response.outcome)
+
+
+async def generate_spec(ctx: dict[str, Any], run_id: str) -> None:
+    logger.info("Received spec generation run_id=%s", run_id)
+
+    try:
+        parsed_run_id = UUID(run_id)
+    except ValueError:
+        logger.warning("Ignoring invalid AI spec run_id=%s", run_id)
+        return
+
+    try:
+        run = await _claim_run(parsed_run_id, AIRunKind.SPEC)
+    except Exception:
+        logger.exception("Unable to claim AI spec run run_id=%s", run_id)
+        raise
+
+    if run is None:
+        logger.info("Skipping unclaimable AI spec run_id=%s", run_id)
+        return
+
+    try:
+        if not run.input_canvas_json:
+            raise AIModelError(
+                "SPEC_INPUT_MISSING",
+                "The saved canvas could not be described.",
+            )
+
+        if not await _set_generation_stage(parsed_run_id):
+            logger.info("AI spec run stopped before generation run_id=%s", run_id)
+            return
+
+        markdown = await generate_spec_markdown(
+            run.input_canvas_json,
+            run.instruction or None,
+        )
+        blob_url = await save_markdown_file(
+            f"projects/{run.project_id}/specs/{run.id}.md",
+            markdown,
+        )
+    except asyncio.CancelledError:
+        job_try = int(ctx.get("job_try", 1))
+        retry = job_try < WORKER_MAX_TRIES
+        transition_task = asyncio.create_task(
+            _transition_cancelled_run(parsed_run_id, retry=retry)
+        )
+        try:
+            while not transition_task.done():
+                try:
+                    await asyncio.shield(transition_task)
+                except asyncio.CancelledError:
+                    continue
+            transitioned = transition_task.result()
+            logger.info(
+                "AI spec cancellation transition run_id=%s retry=%s updated=%s",
+                run_id,
+                retry,
+                transitioned,
+            )
+        except Exception:
+            logger.exception(
+                "Unable to persist AI spec cancellation transition run_id=%s",
+                run_id,
+            )
+        raise
+    except AIModelError as exc:
+        logger.warning("AI spec generation failed run_id=%s code=%s", run_id, exc.code)
+        await _persist_failure_or_raise(
+            parsed_run_id,
+            exc.code,
+            exc.safe_message,
+        )
+        return
+    except Exception:
+        logger.exception("Unexpected AI spec generation failure run_id=%s", run_id)
+        await _persist_failure_or_raise(
+            parsed_run_id,
+            INTERNAL_ERROR_CODE,
+            INTERNAL_ERROR_MESSAGE,
+        )
+        return
+
+    try:
+        persisted = await _persist_spec_success(parsed_run_id, blob_url)
+    except Exception:
+        logger.exception("Unable to persist AI spec completion run_id=%s", run_id)
+        raise
+
+    if not persisted:
+        logger.info("AI spec run stopped before completion run_id=%s", run_id)
+        return
+
+    logger.info("Completed AI spec run run_id=%s", run_id)

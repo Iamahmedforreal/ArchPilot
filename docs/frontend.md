@@ -58,7 +58,9 @@ Current client functions:
 | `fetchCanvas` | `GET /api/projects/{project_id}/canvas` |
 | `saveCanvas` | `PUT /api/projects/{project_id}/canvas` |
 | `submitAiDesign` | `POST /api/projects/{project_id}/ai/design` |
+| `submitAiSpec` | `POST /api/projects/{project_id}/ai/spec` |
 | `fetchAiRun` | `GET /api/projects/{project_id}/ai/runs/{run_id}` |
+| `downloadProjectFile` | `GET /api/projects/{project_id}/files/{file_id}/download` |
 
 AI requests use the same Clerk bearer token, API base URL, response parsing,
 and abort-signal conventions as project and canvas requests. The browser never
@@ -92,6 +94,10 @@ If the backend returns `409`, the hook reloads the server canvas, preserves
 local changes made after the failed save, and retries through the normal
 autosave cycle.
 
+The canvas controller also exposes `flushCanvasSave()` for workflows that need
+the newest saved revision before continuing. The spec-generation flow uses this
+to save pending edits before it calls the backend.
+
 ## Project State
 
 `useProjectActions` owns the active project workflows. It caches project lists
@@ -123,6 +129,20 @@ revision is preserved, so `useCanvasAutosave` persists the replacement through
 the normal PUT and `409` reconciliation flow. `Design applied` describes the
 local editor action; the navbar continues to show saving, saved, or save-error
 state separately.
+
+## AI Spec Flow
+
+The Specs tab in `AiSidebar` generates a Markdown document from the saved
+canvas. When the user clicks `Generate spec`, the frontend:
+
+1. Calls `flushCanvasSave()` and uses the returned revision.
+2. Submits `POST /api/projects/{project_id}/ai/spec`.
+3. Polls the existing AI run endpoint until the `SPEC` run is terminal.
+4. Shows `Download spec` when the run returns a file ID.
+5. Downloads through the authenticated project file endpoint.
+
+The browser never receives the private Blob URL. Failed runs display the safe
+backend message and allow another attempt.
 
 ## Environment Variables
 

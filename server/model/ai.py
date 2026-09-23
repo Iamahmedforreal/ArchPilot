@@ -27,6 +27,32 @@ class AIRunStatus(str, enum.Enum):
     CANCELLED = "CANCELLED"
 
 
+class AIRunKind(str, enum.Enum):
+    DESIGN = "DESIGN"
+    SPEC = "SPEC"
+
+
+class FileBlob(Base):
+    __tablename__ = "files_blob"
+    __table_args__ = (
+        Index("ix_files_blob_project_id", "project_id"),
+        Index("ix_files_blob_blob_url", "blob_url"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    blob_url: Mapped[str] = mapped_column(String(1024), nullable=False)
+
+    project: Mapped[Project] = relationship()
+
+
 class AIRun(Base):
     __tablename__ = "ai_runs"
     __table_args__ = (
@@ -48,6 +74,12 @@ class AIRun(Base):
         ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
     )
+    kind: Mapped[AIRunKind] = mapped_column(
+        Enum(AIRunKind, name="ai_run_kind"),
+        nullable=False,
+        default=AIRunKind.DESIGN,
+        server_default=AIRunKind.DESIGN.value,
+    )
     instruction: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[AIRunStatus] = mapped_column(
         Enum(AIRunStatus, name="ai_run_status"),
@@ -67,6 +99,18 @@ class AIRun(Base):
         String(255),
         nullable=True,
     )
+    base_canvas_revision: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+    input_canvas_json: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB,
+        nullable=True,
+    )
+    file_blob_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("files_blob.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -82,3 +126,4 @@ class AIRun(Base):
     )
 
     project: Mapped[Project] = relationship()
+    file_blob: Mapped[FileBlob | None] = relationship()

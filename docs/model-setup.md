@@ -38,6 +38,11 @@ The ARQ job timeout covers all three possible request timeouts, both backoffs,
 and a 60-second persistence margin. With the default 120-second request timeout,
 the complete job timeout is 426 seconds.
 
+Spec generation uses the same Gemini client and provider error mapping, but it
+asks for `text/plain` Markdown instead of the structured canvas schema. The
+worker builds the prompt from the saved canvas snapshot stored on the `SPEC`
+run and writes the returned Markdown to private Blob storage.
+
 Install the locked backend dependencies from `server` with:
 
 ```powershell

@@ -8,6 +8,10 @@ MessageText = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=8000),
 ]
+SpecInstructionText = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=1000),
+]
 AIRunStatusValue = Literal[
     "PENDING",
     "RUNNING",
@@ -15,6 +19,7 @@ AIRunStatusValue = Literal[
     "FAILED",
     "CANCELLED",
 ]
+AIRunKindValue = Literal["DESIGN", "SPEC"]
 
 
 class StrictSchema(BaseModel):
@@ -30,6 +35,11 @@ class AIMessageResponse(StrictSchema):
     status: AIRunStatusValue
 
 
+class AISpecRequest(StrictSchema):
+    expected_canvas_revision: str
+    instruction: SpecInstructionText | None = None
+
+
 class AIRunErrorResponse(StrictSchema):
     code: str | None = None
     message: str | None = None
@@ -37,6 +47,7 @@ class AIRunErrorResponse(StrictSchema):
 
 class AIRunStatusResponse(StrictSchema):
     run_id: UUID
+    kind: AIRunKindValue
     status: AIRunStatusValue
     stage: str | None = None
     result: dict[str, Any] | None = None

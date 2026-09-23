@@ -113,4 +113,15 @@ const architectureComponents = [
   },
 ]
 
-export { architectureComponents }
+const architectureIconKeyByComponentType = new Map(
+  architectureComponents.map(({ componentType, iconKey }) => [
+    componentType,
+    iconKey,
+  ])
+)
+
+function resolveArchitectureIconKey(componentType, iconKey) {
+  return architectureIconKeyByComponentType.get(componentType) || iconKey
+}
+
+export { architectureComponents, resolveArchitectureIconKey }

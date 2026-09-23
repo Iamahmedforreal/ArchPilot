@@ -21,7 +21,10 @@ import {
 } from "@xyflow/react"
 
 import { Button } from "@/components/ui/button"
-import { architectureComponents } from "@/components/editor/architecture-components"
+import {
+  architectureComponents,
+  resolveArchitectureIconKey,
+} from "@/components/editor/architecture-components"
 import { ArchitectureIcon } from "@/components/editor/architecture-icons"
 import { StarterTemplatesModal } from "@/components/editor/starter-templates-modal"
 import { useCanvasAutosave } from "@/hooks/use-canvas-autosave"
@@ -230,6 +233,7 @@ function CanvasNode({ id, data, selected }) {
   const label = data.label ?? ""
   const nodeColor = data.color ?? DEFAULT_NODE_COLOR
   const nodeTextColor = data.textColor ?? DEFAULT_NODE_TEXT_COLOR
+  const iconKey = resolveArchitectureIconKey(data.componentType, data.iconKey)
 
   const updateLabel = useCallback(
     (value) => {
@@ -282,7 +286,7 @@ function CanvasNode({ id, data, selected }) {
         lineClassName="!border-brand !opacity-80"
       />
       <ArchitectureNodeRenderer
-        iconKey={data.iconKey}
+        iconKey={iconKey}
         label=""
         size={{ width, height }}
         color={nodeColor}
@@ -615,7 +619,7 @@ function CanvasSurface({
     [setEdges, setNodes]
   )
 
-  useCanvasAutosave({
+  const { flushCanvasSave } = useCanvasAutosave({
     projectId,
     nodes,
     edges,
@@ -802,6 +806,17 @@ function CanvasSurface({
     (proposal) => {
       const currentSnapshot = cloneCanvasSnapshot(nodes, edges)
       const nextSnapshot = cloneCanvasSnapshot(proposal.nodes, proposal.edges)
+      const normalizedNodes = nextSnapshot.nodes.map((node) => ({
+        ...node,
+        selected: false,
+        data: {
+          ...node.data,
+          iconKey: resolveArchitectureIconKey(
+            node.data?.componentType,
+            node.data?.iconKey
+          ),
+        },
+      }))
 
       historyRef.current.past = [
         ...historyRef.current.past,
@@ -810,8 +825,8 @@ function CanvasSurface({
       historyRef.current.future = []
       isApplyingHistoryRef.current = true
       localChangeGenerationRef.current += 1
-      nodeCounterRef.current = nextSnapshot.nodes.length
-      setNodes(nextSnapshot.nodes.map((node) => ({ ...node, selected: false })))
+      nodeCounterRef.current = normalizedNodes.length
+      setNodes(normalizedNodes)
       setEdges(nextSnapshot.edges.map((edge) => ({ ...edge, selected: false })))
       setAiFitRequest((request) => request + 1)
     },
@@ -828,9 +843,10 @@ function CanvasSurface({
           isReady: isCanvasReady,
         }
       },
+      flushCanvasSave,
       applyAiCanvas,
     }),
-    [applyAiCanvas, edges.length, isCanvasReady, nodes.length]
+    [applyAiCanvas, edges.length, flushCanvasSave, isCanvasReady, nodes.length]
   )
 
   useEffect(() => {

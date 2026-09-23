@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { downloadProjectFile, fetchAiRun, submitAiSpec } from "@/lib/project-api"
 import { cn } from "@/lib/utils"
 
 const STARTER_PROMPTS = [
@@ -214,17 +215,33 @@ function AiArchitectTab({
   )
 }
 
-function SpecsTab() {
+function SpecsTab({
+  canvasControllerRef,
+  getToken,
+  projectId,
+  specWorkflow,
+  onDownloadSpec,
+  onGenerateSpec,
+}) {
+  const isGenerating =
+    specWorkflow.phase === "submitting" || specWorkflow.phase === "polling"
+  const canGenerate = Boolean(projectId) && !isGenerating
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col gap-3 pt-1">
       <Button
         type="button"
-        disabled
+        disabled={!canGenerate}
         aria-label="Generate spec unavailable"
-        className="h-9 w-full gap-2 rounded-xl bg-brand text-sm text-white hover:bg-brand-hover"
+        onClick={() => onGenerateSpec({ canvasControllerRef, getToken, projectId })}
+        className="h-9 w-full gap-2 rounded-xl bg-brand text-sm text-primary-foreground hover:bg-brand-hover"
       >
-        <Sparkles className="h-4 w-4" />
-        Generate Spec Unavailable
+        {isGenerating ? (
+          <LoaderCircle className="h-4 w-4 animate-spin motion-reduce:animate-none" />
+        ) : (
+          <Sparkles className="h-4 w-4" />
+        )}
+        {isGenerating ? "Generating spec" : "Generate spec"}
       </Button>
 
       <article className="rounded-xl border border-surface-border bg-elevated p-3">
@@ -237,18 +254,20 @@ function SpecsTab() {
               Architecture brief
             </h3>
             <p className="mt-1 text-xs leading-5 text-copy-muted">
-              Draft system overview, components, data flow, and open implementation risks.
+              {specWorkflow.statusMessage ||
+                "Create a Markdown overview from the saved canvas."}
             </p>
           </div>
         </div>
         <Button
           type="button"
           variant="outline"
-          disabled
+          disabled={!specWorkflow.result}
+          onClick={() => onDownloadSpec({ getToken, projectId })}
           className="mt-3 h-9 w-full gap-2 border-surface-border bg-transparent text-xs text-copy-muted"
         >
           <Download className="h-4 w-4" />
-          Download
+          Download spec
         </Button>
       </article>
     </div>
@@ -256,17 +275,26 @@ function SpecsTab() {
 }
 
 function AiSidebar({
+  canvasControllerRef,
+  getToken,
   isOpen,
   onApplyProposal,
   onCheckStatusAgain,
   onClose,
   onOpen,
   onSubmit,
+  projectId,
   workflow,
 }) {
   const [activeTab, setActiveTab] = useState("architect")
   const [draft, setDraft] = useState("")
   const [messages, setMessages] = useState([])
+  const [specWorkflow, setSpecWorkflow] = useState({
+    phase: "idle",
+    runId: null,
+    result: null,
+    statusMessage: null,
+  })
   const assistantTitleId = useId()
   const triggerRef = useRef(null)
   const dialogRef = useRef(null)
@@ -276,6 +304,87 @@ function AiSidebar({
 
   const isWorking =
     workflow.phase === "submitting" || workflow.phase === "polling"
+
+  useEffect(() => {
+    if (specWorkflow.phase !== "polling" || !specWorkflow.runId || !projectId) {
+      return
+    }
+
+    let cancelled = false
+    let timeoutId = null
+    let isRequestPending = false
+
+    async function pollSpecRun() {
+      if (cancelled || isRequestPending) {
+        return
+      }
+
+      isRequestPending = true
+      try {
+        const token = await getToken()
+        if (!token || cancelled) {
+          return
+        }
+
+        const run = await fetchAiRun(token, projectId, specWorkflow.runId)
+        if (cancelled) {
+          return
+        }
+
+        if (run.status === "PENDING" || run.status === "RUNNING") {
+          setSpecWorkflow((current) => ({
+            ...current,
+            phase: "polling",
+            statusMessage:
+              run.stage === "generation"
+                ? "Writing Markdown spec..."
+                : "Preparing spec...",
+          }))
+          return
+        }
+
+        if (run.status === "SUCCEEDED") {
+          setSpecWorkflow({
+            phase: "ready",
+            runId: run.run_id,
+            result: run.result,
+            statusMessage: "Spec ready to download.",
+          })
+          return
+        }
+
+        setSpecWorkflow({
+          phase: "failed",
+          runId: run.run_id,
+          result: null,
+          statusMessage: run.error?.message || "Spec generation failed.",
+        })
+      } catch (error) {
+        if (!cancelled) {
+          setSpecWorkflow((current) => ({
+            ...current,
+            phase: "failed",
+          statusMessage:
+              error.detail || "Spec status could not be checked.",
+          }))
+        }
+      } finally {
+        isRequestPending = false
+        if (!cancelled) {
+          timeoutId = window.setTimeout(pollSpecRun, 1750)
+        }
+      }
+    }
+
+    timeoutId = window.setTimeout(pollSpecRun, 1750)
+
+    return () => {
+      cancelled = true
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId)
+      }
+    }
+  }, [getToken, projectId, specWorkflow.phase, specWorkflow.runId])
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -436,6 +545,69 @@ function AiSidebar({
     }
   }
 
+  async function generateSpec({ canvasControllerRef, getToken, projectId }) {
+    if (!projectId || specWorkflow.phase === "submitting" || specWorkflow.phase === "polling") {
+      return
+    }
+
+    setSpecWorkflow({
+      phase: "submitting",
+      runId: null,
+      result: null,
+      statusMessage: "Saving canvas...",
+    })
+
+    try {
+      const revision = await canvasControllerRef.current?.flushCanvasSave()
+      if (!revision) {
+        throw new Error("Save the canvas before generating a spec.")
+      }
+
+      const token = await getToken()
+      if (!token) {
+        throw new Error("Your session is no longer available.")
+      }
+
+      const run = await submitAiSpec(token, projectId, revision, null)
+      setSpecWorkflow({
+        phase: "polling",
+        runId: run.run_id,
+        result: null,
+        statusMessage: "Generating spec...",
+      })
+    } catch (error) {
+      setSpecWorkflow({
+        phase: "failed",
+        runId: null,
+        result: null,
+        statusMessage: error.detail || error.message || "Spec generation failed.",
+      })
+    }
+  }
+
+  async function downloadSpec({ getToken, projectId }) {
+    if (!projectId || !specWorkflow.result?.file_id) {
+      return
+    }
+
+    const token = await getToken()
+    if (!token) {
+      setSpecWorkflow((current) => ({
+        ...current,
+        phase: "failed",
+        statusMessage: "Your session is no longer available.",
+      }))
+      return
+    }
+
+    await downloadProjectFile(
+      token,
+      projectId,
+      specWorkflow.result.file_id,
+      specWorkflow.result.filename || "architecture-spec.md"
+    )
+  }
+
   return (
     <>
       <Button
@@ -542,7 +714,14 @@ function AiSidebar({
             onSubmitMessage={submitMessage}
           />
         ) : (
-          <SpecsTab />
+          <SpecsTab
+            canvasControllerRef={canvasControllerRef}
+            getToken={getToken}
+            projectId={projectId}
+            specWorkflow={specWorkflow}
+            onDownloadSpec={downloadSpec}
+            onGenerateSpec={generateSpec}
+          />
         )}
       </div>
       </aside>
