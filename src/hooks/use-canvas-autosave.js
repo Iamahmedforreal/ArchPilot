@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { useCallback, useEffect, useRef } from "react"
 
 import { fetchCanvas, saveCanvas } from "@/lib/project-api"
 
@@ -199,6 +199,43 @@ function useCanvasAutosave({
 
     return () => window.clearTimeout(saveTimeout)
   }, [edges, enabled, getToken, nodes, onConflict, onStatusChange, projectId])
+
+  const flushCanvasSave = useCallback(async () => {
+    if (!projectId || !enabled || isReconcilingConflictRef.current) {
+      return lastSavedRevisionRef.current
+    }
+
+    const serializedCanvas = serializeCanvas(nodes, edges)
+    if (serializedCanvas === lastSavedCanvasRef.current) {
+      return lastSavedRevisionRef.current
+    }
+
+    const requestId = saveRequestRef.current + 1
+    saveRequestRef.current = requestId
+    onStatusChange("saving")
+
+    const token = await getToken()
+    if (!token) {
+      throw new Error("Missing project session token")
+    }
+
+    const saveResult = await saveCanvas(
+      token,
+      projectId,
+      JSON.parse(serializedCanvas),
+      lastSavedRevisionRef.current
+    )
+    if (requestId !== saveRequestRef.current) {
+      return lastSavedRevisionRef.current
+    }
+
+    lastSavedCanvasRef.current = serializedCanvas
+    lastSavedRevisionRef.current = saveResult.revision
+    onStatusChange("saved")
+    return saveResult.revision
+  }, [edges, enabled, getToken, nodes, onStatusChange, projectId])
+
+  return { flushCanvasSave }
 }
 
 export { useCanvasAutosave }

@@ -11,13 +11,21 @@ POST /api/projects/{project_id}/ai/design
     -> commit the PENDING AIRun
     -> enqueue generate_canvas(run_id)
     -> return 202
+
+POST /api/projects/{project_id}/ai/spec
+    -> authenticate and verify project ownership
+    -> load the saved canvas and compare its revision
+    -> commit the PENDING SPEC AIRun with the canvas snapshot
+    -> enqueue generate_spec(run_id)
+    -> return 202
 ```
 
-The queue helper is `server/service/ai_queue_service.py`. It creates this ARQ
-job ID:
+The queue helper is `server/service/ai_queue_service.py`. It creates these ARQ
+job IDs:
 
 ```text
 ai-run:{run_id}
+spec-run:{run_id}
 ```
 
 That deterministic ID prevents one run from being present in ARQ twice. Every
@@ -25,10 +33,10 @@ HTTP request creates a new run ID and then enqueues it.
 
 ## Delivery Failure
 
-The database commit happens before Redis enqueueing. The route does not add
-custom Redis recovery behavior in this minimal flow; an enqueue exception is
-handled by FastAPI's normal server-error behavior and the saved run remains
-`PENDING`.
+The database commit happens before Redis enqueueing. Spec submission marks its
+run `FAILED` with a safe queue error if Redis enqueueing fails, so the frontend
+does not present a queued success forever. Design submission still has the
+older minimal behavior where Redis delivery failure can leave a run `PENDING`.
 
 ## Worker
 
@@ -38,9 +46,9 @@ Start the worker from the `server` directory:
 uv run arq workers.config_worker.WorkerSettings
 ```
 
-`server/workers/config_worker.py` registers `generate_canvas` and defines the
-job timeout and concurrency. `server/workers/ai_chat_worker.py` contains the
-job function.
+`server/workers/config_worker.py` registers `generate_canvas` and
+`generate_spec` and defines the job timeout and concurrency.
+`server/workers/ai_chat_worker.py` contains both job functions.
 
 The ARQ timeout is derived from shared model retry configuration:
 
@@ -53,7 +61,7 @@ Changing `GEMINI_TIMEOUT_SECONDS` updates both the SDK request timeout and the
 complete ARQ job budget. Retry count, delay schedule, timeout default, and
 persistence margin live in `server/service/ai_retry_config.py`.
 
-For each job, the worker:
+For each design job, the worker:
 
 1. Logs the received run ID.
 2. Atomically claims the run only when it is `PENDING`, setting `RUNNING`,
@@ -91,6 +99,20 @@ configuration, timeouts, and other errors fail immediately. During backoff the
 existing run remains `RUNNING` at the `generation` stage. The worker never
 creates another `AIRun`, re-enqueues the job, or repeats the frontend POST.
 
+For each spec job, the worker:
+
+1. Claims only a `PENDING` `SPEC` run.
+2. Reads the canvas snapshot stored on the run. It does not fetch the live
+   project canvas, which may have changed while the job was queued.
+3. Sends node labels/types, connections, and the optional instruction to Gemini
+   with Markdown-only instructions.
+4. Saves UTF-8 Markdown bytes to the deterministic private path
+   `projects/{project_id}/specs/{run_id}.md`.
+5. Creates or reuses one `files_blob` row for that path, attaches it to the run,
+   and marks the run `SUCCEEDED`.
+6. Stores safe failure codes/messages for model or storage failures, avoiding
+   an endless generating state.
+
 The frontend can read stored worker progress through
 `GET /api/projects/{project_id}/ai/runs/{run_id}`. This endpoint only reads the
 database and does not enqueue or execute work.
@@ -111,6 +133,7 @@ database and does not enqueue or execute work.
 | `server/service/ai_run_service.py` | Verifies ownership and commits a new pending run |
 | `server/service/ai_context_service.py` | Prepares editor-aware model context and response schema |
 | `server/service/ai_model_service.py` | Makes one Gemini attempt and validates or safely rejects its response |
+| `server/service/file_blob_service.py` | Saves and loads generated Markdown files from private Blob storage |
 | `server/service/ai_retry_config.py` | Shared model attempt, backoff, timeout, and persistence-margin configuration |
 | `server/service/ai_queue_service.py` | Builds the ARQ job name, argument, and deterministic job ID |
 | `server/workers/ai_chat_worker.py` | Claims runs and persists progress, proposals, and safe failures |

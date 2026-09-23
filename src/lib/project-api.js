@@ -124,6 +124,23 @@ async function submitAiDesign(token, projectId, message, options = {}) {
   return parseProjectResponse(response)
 }
 
+async function submitAiSpec(token, projectId, expectedCanvasRevision, instruction, options = {}) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${projectId}/ai/spec`,
+    {
+      method: "POST",
+      headers: getProjectHeaders(token),
+      body: JSON.stringify({
+        expected_canvas_revision: expectedCanvasRevision,
+        instruction: instruction || null,
+      }),
+      signal: options.signal,
+    }
+  )
+
+  return parseProjectResponse(response)
+}
+
 async function fetchAiRun(token, projectId, runId, options = {}) {
   const response = await fetch(
     `${API_BASE_URL}/api/projects/${projectId}/ai/runs/${runId}`,
@@ -137,9 +154,36 @@ async function fetchAiRun(token, projectId, runId, options = {}) {
   return parseProjectResponse(response)
 }
 
+async function downloadProjectFile(token, projectId, fileId, filename) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${projectId}/files/${fileId}/download`,
+    {
+      cache: "no-store",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  )
+
+  if (!response.ok) {
+    return parseProjectResponse(response)
+  }
+
+  const blob = await response.blob()
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement("a")
+  link.href = url
+  link.download = filename
+  document.body.append(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
+}
+
 export {
   createProject,
   deleteProject,
+  downloadProjectFile,
   fetchAiRun,
   fetchCanvas,
   fetchProject,
@@ -147,4 +191,5 @@ export {
   renameProject,
   saveCanvas,
   submitAiDesign,
+  submitAiSpec,
 }

@@ -27,7 +27,9 @@ and mutations are scoped to the authenticated Clerk user.
 | `GET` | `/api/projects/{project_id}/canvas` | Load the saved canvas | `200` or `204` |
 | `PUT` | `/api/projects/{project_id}/canvas` | Save the complete canvas | `200` |
 | `POST` | `/api/projects/{project_id}/ai/design` | Create and enqueue an AI design run | `202` |
+| `POST` | `/api/projects/{project_id}/ai/spec` | Create and enqueue an AI Markdown spec run | `202` |
 | `GET` | `/api/projects/{project_id}/ai/runs/{run_id}` | Read AI run progress or result | `200` |
+| `GET` | `/api/projects/{project_id}/files/{file_id}/download` | Download an owned generated Markdown file | `200` |
 
 ## Health
 
@@ -191,6 +193,7 @@ Returns an owned run's stored status and progress:
 ```json
 {
   "run_id": "1c0cb1aa-9975-43fd-a975-1c0c8f1ee621",
+  "kind": "DESIGN",
   "status": "RUNNING",
   "stage": "generation",
   "result": null,
@@ -198,9 +201,19 @@ Returns an owned run's stored status and progress:
 }
 ```
 
-`result` contains the stored canvas proposal only for `SUCCEEDED` runs. `error`
-contains the safe stored `code` and `message` only for `FAILED` runs. Pending,
-running, and cancelled responses expose neither field.
+`result` contains the stored canvas proposal only for successful `DESIGN` runs.
+For successful `SPEC` runs it contains a generated file reference:
+
+```json
+{
+  "file_id": "7ab30c22-9f82-47a1-b016-8a03c77463f4",
+  "filename": "architecture-spec.md"
+}
+```
+
+The private blob URL is never returned. `error` contains the safe stored `code`
+and `message` only for `FAILED` runs. Pending, running, and cancelled responses
+expose neither field.
 
 An unsupported request fails with `OUT_OF_SCOPE`; a request needing more detail
 fails with `NEEDS_CLARIFICATION`. Provider and execution failures use stable,
@@ -214,6 +227,51 @@ belonging to a different project. It is database-read-only and always sends
 Redis delivery failure can leave a committed run `PENDING`, and worker
 interruption after claim can leave it `RUNNING`. Automatic recovery is not
 implemented yet.
+
+### `POST /api/projects/{project_id}/ai/spec`
+
+Request body:
+
+```json
+{
+  "expected_canvas_revision": "blob-etag-from-get-canvas",
+  "instruction": "Focus on the API and data model"
+}
+```
+
+`instruction` is optional and limited to 1,000 characters. The route verifies
+project ownership, loads the saved canvas from the server-side project blob
+path, and compares the saved ETag with `expected_canvas_revision`. A mismatch
+returns `409` so a pending autosave or another edit cannot silently change the
+input. Missing saved canvas returns `404`; invalid or empty AI canvas input
+returns `422`.
+
+On success the route creates a `PENDING` `SPEC` run with the saved canvas
+snapshot and revision, commits it, and enqueues `generate_spec` with job ID
+`spec-run:{run_id}`. It returns promptly:
+
+```json
+{
+  "run_id": "1c0cb1aa-9975-43fd-a975-1c0c8f1ee621",
+  "status": "PENDING"
+}
+```
+
+If Redis enqueueing fails, the run is marked `FAILED` with a safe queue error
+and the request returns `502`.
+
+### `GET /api/projects/{project_id}/files/{file_id}/download`
+
+Downloads a generated Markdown file as an attachment:
+
+```http
+Content-Type: text/markdown; charset=utf-8
+Content-Disposition: attachment; filename="architecture-spec.md"
+Cache-Control: no-store
+```
+
+The route verifies project ownership and looks up the file by both project and
+file ID. Missing, guessed, or cross-project file IDs return `404`.
 
 ## Backend Responsibilities
 
