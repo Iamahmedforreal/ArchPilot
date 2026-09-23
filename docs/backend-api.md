@@ -135,8 +135,9 @@ returned by the server:
 ```
 
 Use `null` for the first save. A stale revision returns `409`; the frontend
-reloads the latest canvas and reconciles local changes. A successful response
-contains the blob path and new revision:
+keeps local changes dirty, pauses autosave, and shows explicit reload-server or
+overwrite-with-local recovery actions instead of silently reconciling the
+server version. A successful response contains the blob path and new revision:
 
 ```json
 {

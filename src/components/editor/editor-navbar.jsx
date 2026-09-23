@@ -1,23 +1,38 @@
 import { UserButton } from "@clerk/react"
-import { Check, CircleAlert, CloudUpload, LayoutTemplate, PanelLeft, Sparkles } from "lucide-react"
+import {
+  Check,
+  CircleAlert,
+  CloudUpload,
+  LayoutTemplate,
+  PanelLeft,
+  RefreshCw,
+  Save,
+  Sparkles,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
+/** Displays editor actions and the current canvas save status. */
 function EditorNavbar({
   isSidebarOpen = false,
   isAiSidebarOpen = false,
   onToggleSidebar,
   onToggleAiSidebar,
   onOpenTemplates,
+  onSaveCanvas,
+  onReloadCanvas,
+  onOverwriteCanvas,
   projectName = null,
   saveStatus = "idle",
   className,
 }) {
   const saveStatusDetails = {
+    unsaved: { Icon: CircleAlert, label: "Unsaved changes" },
     saving: { Icon: CloudUpload, label: "Saving canvas" },
     saved: { Icon: Check, label: "Canvas saved" },
     error: { Icon: CircleAlert, label: "Canvas save failed" },
+    conflict: { Icon: CircleAlert, label: "Canvas revision conflict" },
   }
   const currentSaveStatus = saveStatusDetails[saveStatus]
 
@@ -55,7 +70,7 @@ function EditorNavbar({
           <span
             className={cn(
               "inline-flex h-8 items-center gap-1.5 rounded-xl px-2 text-xs font-medium",
-              saveStatus === "error"
+              saveStatus === "error" || saveStatus === "conflict"
                 ? "text-brand"
                 : "text-copy-muted"
             )}
@@ -67,6 +82,45 @@ function EditorNavbar({
             />
             <span className="hidden lg:inline">{currentSaveStatus.label}</span>
           </span>
+        )}
+        {saveStatus === "conflict" && onReloadCanvas && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Reload server canvas"
+            title="Reload server canvas"
+            onClick={onReloadCanvas}
+            className="h-9 w-9 rounded-xl text-copy-secondary hover:bg-subtle hover:text-brand"
+          >
+            <RefreshCw className="h-5 w-5" />
+          </Button>
+        )}
+        {saveStatus === "conflict" && onOverwriteCanvas && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Overwrite server canvas"
+            title="Overwrite server canvas with local work"
+            onClick={onOverwriteCanvas}
+            className="h-9 w-9 rounded-xl text-copy-secondary hover:bg-subtle hover:text-brand"
+          >
+            <Save className="h-5 w-5" />
+          </Button>
+        )}
+        {onSaveCanvas && saveStatus !== "conflict" && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Save canvas"
+            title="Save canvas"
+            onClick={onSaveCanvas}
+            className="h-9 w-9 rounded-xl text-copy-secondary hover:bg-subtle hover:text-brand"
+          >
+            <Save className="h-5 w-5" />
+          </Button>
         )}
         {onOpenTemplates && (
           <Button

@@ -570,6 +570,7 @@ function CanvasLoadError({ onRetry }) {
   )
 }
 
+/** Renders an editable canvas and coordinates its local changes with autosave. */
 function CanvasSurface({
   canvasControllerRef,
   isTemplatesModalOpen,
@@ -588,6 +589,7 @@ function CanvasSurface({
   const [hydratedCanvasKey, setHydratedCanvasKey] = useState(null)
   const [fittedCanvasKey, setFittedCanvasKey] = useState(null)
   const [dragPreview, setDragPreview] = useState(null)
+  const [isNodeDragging, setIsNodeDragging] = useState(false)
   const { fitView, screenToFlowPosition, setViewport, zoomIn, zoomOut } = useReactFlow()
   const nodesInitialized = useNodesInitialized()
   const historyRef = useRef({ past: [], future: [] })
@@ -601,25 +603,7 @@ function CanvasSurface({
     canvasLoadState === "loading" ||
     (canvasLoadState === "ready" && fittedCanvasKey !== canvasLoadKey)
 
-  const reconcileCanvasConflict = useCallback(
-    async (serverCanvas) => {
-      const snapshot = {
-        nodes: serverCanvas.nodes ?? [],
-        edges: serverCanvas.edges ?? [],
-      }
-
-      isApplyingHistoryRef.current = true
-      localChangeGenerationRef.current += 1
-      historyRef.current = { past: [], future: [] }
-      lastSnapshotRef.current = cloneCanvasSnapshot(snapshot.nodes, snapshot.edges)
-      nodeCounterRef.current = snapshot.nodes.length
-      setNodes(snapshot.nodes)
-      setEdges(snapshot.edges)
-    },
-    [setEdges, setNodes]
-  )
-
-  const { flushCanvasSave } = useCanvasAutosave({
+  const { flushCanvasSave, overwriteConflictWithLocalCanvas } = useCanvasAutosave({
     projectId,
     nodes,
     edges,
@@ -627,7 +611,7 @@ function CanvasSurface({
     enabled: isCanvasReady,
     initialRevision: initialCanvas?.revision ?? null,
     baselineKey: fittedCanvasKey,
-    onConflict: reconcileCanvasConflict,
+    isSavePaused: isNodeDragging,
     onStatusChange: onSaveStatusChange,
   })
 
@@ -844,9 +828,17 @@ function CanvasSurface({
         }
       },
       flushCanvasSave,
+      overwriteConflictWithLocalCanvas,
       applyAiCanvas,
     }),
-    [applyAiCanvas, edges.length, flushCanvasSave, isCanvasReady, nodes.length]
+    [
+      applyAiCanvas,
+      edges.length,
+      flushCanvasSave,
+      isCanvasReady,
+      nodes.length,
+      overwriteConflictWithLocalCanvas,
+    ]
   )
 
   useEffect(() => {
@@ -1075,6 +1067,8 @@ function CanvasSurface({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={handleConnect}
+        onNodeDragStart={() => setIsNodeDragging(true)}
+        onNodeDragStop={() => setIsNodeDragging(false)}
         connectionMode={ConnectionMode.Loose}
         connectionLineStyle={{ stroke: "var(--accent-primary)", strokeWidth: 1.5 }}
         proOptions={{ hideAttribution: true }}

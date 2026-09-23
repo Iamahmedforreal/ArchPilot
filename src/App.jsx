@@ -26,6 +26,7 @@ function isDesktopViewport() {
   return window.matchMedia("(min-width: 768px)").matches
 }
 
+/** Coordinates editor workspace loading, canvas saves, and navigation. */
 function EditorShell({ pathname, navigate }) {
   const { getToken } = useAuth()
   const [isProjectSidebarOpen, setIsProjectSidebarOpen] = useState(false)
@@ -87,6 +88,22 @@ function EditorShell({ pathname, navigate }) {
   }, [])
   const retryCanvasRequest = useCallback(() => {
     setCanvasRequestVersion((version) => version + 1)
+  }, [])
+  const saveCanvasNow = useCallback(() => {
+    canvasControllerRef.current?.flushCanvasSave().catch((error) => {
+      console.error(error)
+    })
+  }, [])
+  const reloadCanvasFromServer = useCallback(() => {
+    setCanvasSaveStatus("idle")
+    retryCanvasRequest()
+  }, [retryCanvasRequest])
+  const overwriteCanvasWithLocal = useCallback(() => {
+    canvasControllerRef.current
+      ?.overwriteConflictWithLocalCanvas()
+      .catch((error) => {
+        console.error(error)
+      })
   }, [])
 
   useEffect(() => {
@@ -324,6 +341,9 @@ function EditorShell({ pathname, navigate }) {
         onOpenTemplates={
           activeWorkspaceId ? () => setIsTemplatesModalOpen(true) : undefined
         }
+        onSaveCanvas={activeWorkspaceId ? saveCanvasNow : undefined}
+        onReloadCanvas={activeWorkspaceId ? reloadCanvasFromServer : undefined}
+        onOverwriteCanvas={activeWorkspaceId ? overwriteCanvasWithLocal : undefined}
         projectName={activeProject?.name}
         saveStatus={canvasSaveStatus}
       />
