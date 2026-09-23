@@ -93,6 +93,17 @@ function EditorShell({ pathname, navigate }) {
       console.error(error)
     })
   }, [])
+  const reloadCanvasFromServer = useCallback(() => {
+    setCanvasSaveStatus("idle")
+    retryCanvasRequest()
+  }, [retryCanvasRequest])
+  const overwriteCanvasWithLocal = useCallback(() => {
+    canvasControllerRef.current
+      ?.overwriteConflictWithLocalCanvas()
+      .catch((error) => {
+        console.error(error)
+      })
+  }, [])
 
   useEffect(() => {
     let ignore = false
@@ -330,6 +341,8 @@ function EditorShell({ pathname, navigate }) {
           activeWorkspaceId ? () => setIsTemplatesModalOpen(true) : undefined
         }
         onSaveCanvas={activeWorkspaceId ? saveCanvasNow : undefined}
+        onReloadCanvas={activeWorkspaceId ? reloadCanvasFromServer : undefined}
+        onOverwriteCanvas={activeWorkspaceId ? overwriteCanvasWithLocal : undefined}
         projectName={activeProject?.name}
         saveStatus={canvasSaveStatus}
       />

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react"
 
-import { saveCanvas } from "@/lib/project-api"
+import { fetchCanvas, saveCanvas } from "@/lib/project-api"
 
 const AUTOSAVE_DELAY_MS = 2000
 
@@ -55,8 +55,10 @@ function useCanvasAutosave({
   const lastConfirmedRevisionRef = useRef(null)
   const pendingSaveTimeoutRef = useRef(null)
   const isSaveInFlightRef = useRef(false)
+  const activeSavePromiseRef = useRef(null)
   const queuedManualSaveRef = useRef(false)
   const saveRequestRef = useRef(0)
+  const hasConflictRef = useRef(false)
 
   const clearPendingTimer = useCallback(() => {
     if (pendingSaveTimeoutRef.current !== null) {
@@ -65,22 +67,8 @@ function useCanvasAutosave({
     }
   }, [])
 
-  const saveLatestCanvas = useCallback(
+  const runSaveLoop = useCallback(
     async ({ manual = false } = {}) => {
-      clearPendingTimer()
-
-      if (!projectId || !enabled) {
-        return lastConfirmedRevisionRef.current
-      }
-
-      if (isSaveInFlightRef.current) {
-        if (manual) {
-          queuedManualSaveRef.current = true
-        }
-        onStatusChange("unsaved")
-        return lastConfirmedRevisionRef.current
-      }
-
       if (latestSerializedRef.current === lastConfirmedSerializedRef.current) {
         queuedManualSaveRef.current = false
         onStatusChange("saved")
@@ -129,7 +117,12 @@ function useCanvasAutosave({
           lastConfirmedSerializedRef.current = serializedSnapshot
         } catch (error) {
           if (requestId === saveRequestRef.current) {
-            onStatusChange(error.status === 409 ? "conflict" : "error")
+            if (error.status === 409) {
+              hasConflictRef.current = true
+              onStatusChange("conflict")
+            } else {
+              onStatusChange("error")
+            }
           }
           throw error
         } finally {
@@ -153,13 +146,51 @@ function useCanvasAutosave({
 
       return latestRevision
     },
-    [clearPendingTimer, enabled, getToken, isSavePaused, onStatusChange, projectId]
+    [getToken, isSavePaused, onStatusChange, projectId]
+  )
+
+  const saveLatestCanvas = useCallback(
+    async ({ manual = false } = {}) => {
+      clearPendingTimer()
+
+      if (!projectId || !enabled) {
+        return lastConfirmedRevisionRef.current
+      }
+
+      if (hasConflictRef.current) {
+        onStatusChange("conflict")
+        return lastConfirmedRevisionRef.current
+      }
+
+      if (isSaveInFlightRef.current) {
+        if (manual) {
+          queuedManualSaveRef.current = true
+          onStatusChange("unsaved")
+          return await (activeSavePromiseRef.current ??
+            Promise.resolve(lastConfirmedRevisionRef.current))
+        }
+
+        return lastConfirmedRevisionRef.current
+      }
+
+      const savePromise = runSaveLoop({ manual })
+      activeSavePromiseRef.current = savePromise
+
+      try {
+        return await savePromise
+      } finally {
+        if (activeSavePromiseRef.current === savePromise) {
+          activeSavePromiseRef.current = null
+        }
+      }
+    },
+    [clearPendingTimer, enabled, onStatusChange, projectId, runSaveLoop]
   )
 
   const scheduleAutosave = useCallback(() => {
     clearPendingTimer()
 
-    if (!projectId || !enabled || isSavePaused) {
+    if (!projectId || !enabled || isSavePaused || hasConflictRef.current) {
       return
     }
     if (latestSerializedRef.current === lastConfirmedSerializedRef.current) {
@@ -189,7 +220,9 @@ function useCanvasAutosave({
       lastConfirmedSerializedRef.current = null
       lastConfirmedRevisionRef.current = null
       isSaveInFlightRef.current = false
+      activeSavePromiseRef.current = null
       queuedManualSaveRef.current = false
+      hasConflictRef.current = false
       return
     }
 
@@ -199,8 +232,15 @@ function useCanvasAutosave({
       lastConfirmedSerializedRef.current = serializedSnapshot
       lastConfirmedRevisionRef.current = initialRevision ?? null
       isSaveInFlightRef.current = false
+      activeSavePromiseRef.current = null
       queuedManualSaveRef.current = false
+      hasConflictRef.current = false
       onStatusChange("idle")
+      return
+    }
+
+    if (hasConflictRef.current) {
+      onStatusChange("conflict")
       return
     }
 
@@ -230,6 +270,7 @@ function useCanvasAutosave({
     return () => {
       clearPendingTimer()
       saveRequestRef.current += 1
+      activeSavePromiseRef.current = null
     }
   }, [clearPendingTimer])
 
@@ -238,7 +279,53 @@ function useCanvasAutosave({
     return await saveLatestCanvas({ manual: true })
   }, [clearPendingTimer, saveLatestCanvas])
 
-  return { flushCanvasSave }
+  const overwriteConflictWithLocalCanvas = useCallback(async () => {
+    clearPendingTimer()
+
+    if (!projectId || !enabled) {
+      return lastConfirmedRevisionRef.current
+    }
+
+    if (isSaveInFlightRef.current) {
+      queuedManualSaveRef.current = true
+      return await (activeSavePromiseRef.current ??
+        Promise.resolve(lastConfirmedRevisionRef.current))
+    }
+
+    onStatusChange("saving")
+
+    try {
+      const token = await getToken()
+      if (!token) {
+        throw new Error("Missing project session token")
+      }
+
+      const serverCanvas = await fetchCanvas(token, projectId)
+      const serverSnapshot = stripTransientCanvasState(
+        serverCanvas?.nodes ?? [],
+        serverCanvas?.edges ?? []
+      )
+
+      lastConfirmedRevisionRef.current = serverCanvas?.revision ?? null
+      lastConfirmedSerializedRef.current = serializeCanvasSnapshot(serverSnapshot)
+      hasConflictRef.current = false
+
+      return await saveLatestCanvas({ manual: true })
+    } catch (error) {
+      hasConflictRef.current = true
+      onStatusChange("conflict")
+      throw error
+    }
+  }, [
+    clearPendingTimer,
+    enabled,
+    getToken,
+    onStatusChange,
+    projectId,
+    saveLatestCanvas,
+  ])
+
+  return { flushCanvasSave, overwriteConflictWithLocalCanvas }
 }
 
 export { useCanvasAutosave }

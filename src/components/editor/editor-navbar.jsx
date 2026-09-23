@@ -5,6 +5,7 @@ import {
   CloudUpload,
   LayoutTemplate,
   PanelLeft,
+  RefreshCw,
   Save,
   Sparkles,
 } from "lucide-react"
@@ -19,6 +20,8 @@ function EditorNavbar({
   onToggleAiSidebar,
   onOpenTemplates,
   onSaveCanvas,
+  onReloadCanvas,
+  onOverwriteCanvas,
   projectName = null,
   saveStatus = "idle",
   className,
@@ -79,7 +82,33 @@ function EditorNavbar({
             <span className="hidden lg:inline">{currentSaveStatus.label}</span>
           </span>
         )}
-        {onSaveCanvas && (
+        {saveStatus === "conflict" && onReloadCanvas && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Reload server canvas"
+            title="Reload server canvas"
+            onClick={onReloadCanvas}
+            className="h-9 w-9 rounded-xl text-copy-secondary hover:bg-subtle hover:text-brand"
+          >
+            <RefreshCw className="h-5 w-5" />
+          </Button>
+        )}
+        {saveStatus === "conflict" && onOverwriteCanvas && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label="Overwrite server canvas"
+            title="Overwrite server canvas with local work"
+            onClick={onOverwriteCanvas}
+            className="h-9 w-9 rounded-xl text-copy-secondary hover:bg-subtle hover:text-brand"
+          >
+            <Save className="h-5 w-5" />
+          </Button>
+        )}
+        {onSaveCanvas && saveStatus !== "conflict" && (
           <Button
             type="button"
             variant="ghost"

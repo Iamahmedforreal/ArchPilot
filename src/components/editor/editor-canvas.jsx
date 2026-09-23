@@ -602,7 +602,7 @@ function CanvasSurface({
     canvasLoadState === "loading" ||
     (canvasLoadState === "ready" && fittedCanvasKey !== canvasLoadKey)
 
-  const { flushCanvasSave } = useCanvasAutosave({
+  const { flushCanvasSave, overwriteConflictWithLocalCanvas } = useCanvasAutosave({
     projectId,
     nodes,
     edges,
@@ -827,9 +827,17 @@ function CanvasSurface({
         }
       },
       flushCanvasSave,
+      overwriteConflictWithLocalCanvas,
       applyAiCanvas,
     }),
-    [applyAiCanvas, edges.length, flushCanvasSave, isCanvasReady, nodes.length]
+    [
+      applyAiCanvas,
+      edges.length,
+      flushCanvasSave,
+      isCanvasReady,
+      nodes.length,
+      overwriteConflictWithLocalCanvas,
+    ]
   )
 
   useEffect(() => {

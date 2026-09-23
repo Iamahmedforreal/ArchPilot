@@ -27,7 +27,7 @@ live in `src/lib/auth-routes.js`.
 | `src/lib/project-api.js` | All current HTTP calls to the backend |
 | `src/lib/ai-canvas.js` | Defensive checks for generated canvas proposals |
 | `src/hooks/use-project-actions.js` | Project list cache and create/rename/delete workflows |
-| `src/hooks/use-canvas-autosave.js` | Reliable canvas dirty-state tracking, autosave, manual save, and conflict status |
+| `src/hooks/use-canvas-autosave.js` | Reliable canvas dirty-state tracking, autosave, manual save, and conflict recovery |
 | `src/hooks/use-ai-design.js` | AI submission, polling, progress, and proposal application |
 | `src/components/editor/editor-canvas.jsx` | React Flow nodes, edges, editing, history, templates, and palette |
 | `src/components/editor/project-sidebar.jsx` | Project navigation |
@@ -102,12 +102,14 @@ the hook sends the latest state with the returned revision. The navbar shows
 
 The navbar Save button calls the same save function immediately. It cancels any
 pending autosave timer; if a PUT is already running, the latest state is queued
-and saved as soon as that request completes.
+and the caller waits for the active save loop to finish with the final revision
+or error.
 
 If the backend returns `409`, the hook keeps the local canvas dirty and shows a
-revision conflict. It does not silently overwrite or reconcile the server
-version. Network failures also keep the canvas dirty and leave the Save button
-available for retry.
+revision conflict. Autosave pauses while the conflict is active, and the navbar
+shows explicit recovery actions: reload the server canvas or overwrite the
+server canvas with the current local work. Network failures also keep the canvas
+dirty and leave the Save button available for retry.
 
 The canvas controller also exposes `flushCanvasSave()` for workflows that need
 the newest saved revision before continuing. The spec-generation flow uses this
