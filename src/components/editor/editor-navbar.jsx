@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
+/** Displays editor actions and the current canvas save status. */
 function EditorNavbar({
   isSidebarOpen = false,
   isAiSidebarOpen = false,

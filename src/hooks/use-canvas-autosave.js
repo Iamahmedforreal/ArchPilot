@@ -4,6 +4,7 @@ import { fetchCanvas, saveCanvas } from "@/lib/project-api"
 
 const AUTOSAVE_DELAY_MS = 2000
 
+/** Excludes selection and dragging state before comparing or saving a canvas. */
 function stripTransientCanvasState(nodes, edges) {
   return {
     nodes: nodes.map((node) => {
@@ -33,10 +34,12 @@ function stripTransientCanvasState(nodes, edges) {
   }
 }
 
+/** Serializes a normalized canvas snapshot for dirty-state comparisons. */
 function serializeCanvasSnapshot(snapshot) {
   return JSON.stringify(snapshot)
 }
 
+/** Tracks confirmed canvas revisions and provides debounced and manual saves. */
 function useCanvasAutosave({
   projectId,
   nodes,
