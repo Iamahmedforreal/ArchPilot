@@ -570,6 +570,7 @@ function CanvasLoadError({ onRetry }) {
   )
 }
 
+/** Renders an editable canvas and coordinates its local changes with autosave. */
 function CanvasSurface({
   canvasControllerRef,
   isTemplatesModalOpen,

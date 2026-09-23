@@ -26,6 +26,7 @@ function isDesktopViewport() {
   return window.matchMedia("(min-width: 768px)").matches
 }
 
+/** Coordinates editor workspace loading, canvas saves, and navigation. */
 function EditorShell({ pathname, navigate }) {
   const { getToken } = useAuth()
   const [isProjectSidebarOpen, setIsProjectSidebarOpen] = useState(false)
