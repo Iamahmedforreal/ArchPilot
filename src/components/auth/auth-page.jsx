@@ -3,6 +3,7 @@ import { SignIn, SignUp } from "@clerk/react"
 import { AFTER_SIGN_IN_URL, AFTER_SIGN_UP_URL, SIGN_IN_URL, SIGN_UP_URL } from "@/lib/auth-routes"
 
 const clerkFormAppearance = {
+  cssLayerName: "clerk",
   variables: {
     colorPrimary: "var(--accent-primary)",
     colorBackground: "var(--bg-surface)",

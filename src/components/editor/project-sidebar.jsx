@@ -93,7 +93,7 @@ function ProjectSidebar({
         aria-hidden={!isOpen}
         inert={isOpen ? undefined : ""}
         className={cn(
-          "fixed inset-x-2 bottom-2 z-40 flex max-h-[calc(100dvh_-_1rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] min-h-[min(32rem,calc(100dvh_-_1rem))] max-w-[calc(100vw_-_1rem)] flex-col rounded-2xl border border-surface-border bg-base/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-sidebar-foreground shadow-2xl backdrop-blur-xl transition-transform duration-200 ease-out md:bottom-3 md:left-3 md:right-auto md:top-[3.75rem] md:min-h-0 md:w-[240px] md:max-w-[calc(100vw_-_0.75rem)] md:rounded-[1.4rem] md:pb-3",
+          "fixed inset-x-2 bottom-2 z-40 flex max-h-[calc(100dvh_-_1rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom))] min-h-[min(32rem,calc(100dvh_-_1rem_-_env(safe-area-inset-top)_-_env(safe-area-inset-bottom)))] max-w-[calc(100vw_-_1rem)] flex-col rounded-2xl border border-surface-border bg-base/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] text-sidebar-foreground shadow-2xl backdrop-blur-xl transition-transform duration-200 ease-out md:bottom-3 md:left-3 md:right-auto md:top-[3.75rem] md:min-h-0 md:w-[240px] md:max-w-[calc(100vw_-_0.75rem)] md:rounded-[1.4rem] md:pb-3",
           isOpen
             ? "translate-y-0 md:translate-x-0"
             : "pointer-events-none translate-y-[calc(100%+1rem)] md:-translate-x-full md:translate-y-0",
