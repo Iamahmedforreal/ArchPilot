@@ -97,14 +97,19 @@ function cloneCanvasSnapshot(nodes, edges) {
 }
 
 function withVisibleEdgeMarker(edge) {
+  const markerEnd =
+    typeof edge.markerEnd === "string"
+      ? { type: edge.markerEnd }
+      : edge.markerEnd ?? {}
+
   return {
     ...edge,
     markerEnd: {
-      ...edge.markerEnd,
-      type: edge.markerEnd?.type ?? "arrowclosed",
+      ...markerEnd,
+      type: markerEnd.type ?? "arrowclosed",
       color: "var(--text-primary)",
-      width: edge.markerEnd?.width ?? EDGE_MARKER_SIZE,
-      height: edge.markerEnd?.height ?? EDGE_MARKER_SIZE,
+      width: markerEnd.width ?? EDGE_MARKER_SIZE,
+      height: markerEnd.height ?? EDGE_MARKER_SIZE,
     },
   }
 }
