@@ -36,6 +36,7 @@ const DEFAULT_NODE_TEXT_COLOR = "var(--text-primary)"
 const HISTORY_LIMIT = 80
 const INITIAL_FIT_PADDING = 0.3
 const INITIAL_FIT_MAX_ZOOM = 1
+const EDGE_MARKER_SIZE = 14
 const PRIMARY_COMPONENT_TYPES = [
   "webApp",
   "api",
@@ -92,6 +93,19 @@ function cloneCanvasSnapshot(nodes, edges) {
       style: edge.style ? { ...edge.style } : undefined,
       markerEnd: edge.markerEnd ? { ...edge.markerEnd } : undefined,
     })),
+  }
+}
+
+function withVisibleEdgeMarker(edge) {
+  return {
+    ...edge,
+    markerEnd: {
+      ...edge.markerEnd,
+      type: edge.markerEnd?.type ?? "arrowclosed",
+      color: "var(--text-primary)",
+      width: edge.markerEnd?.width ?? EDGE_MARKER_SIZE,
+      height: edge.markerEnd?.height ?? EDGE_MARKER_SIZE,
+    },
   }
 }
 
@@ -1050,6 +1064,8 @@ function CanvasSurface({
     [fitView, setEdges, setNodes]
   )
 
+  const visibleEdges = edges.map(withVisibleEdgeMarker)
+
   return (
     <div
       className={cn(
@@ -1062,7 +1078,7 @@ function CanvasSurface({
       <ReactFlow
         className="h-full w-full"
         nodes={nodes}
-        edges={edges}
+        edges={visibleEdges}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
