@@ -15,9 +15,11 @@ Requests without a token receive HTTP `429` with the detail
 `AI request rate limit exceeded. Please try again shortly.` Non-AI endpoints,
 AI run polling, and file downloads do not consume this allowance.
 
-The service serializes the Redis read/calculate/write operation with a Python
-lock for the first implementation. Redis errors return HTTP `503`; the
-limiter does not fail open and allow unlimited AI requests.
+The service performs the Redis read/refill/decision/write operation in one Lua
+script, so concurrent application processes cannot overspend a bucket. Redis
+errors return HTTP `503`; the limiter does not fail open and allow unlimited AI
+requests. Idle bucket state expires after the bucket's full refill period.
+Capacity and refill-period settings must be positive when the application loads.
 
 Defaults can be changed with:
 

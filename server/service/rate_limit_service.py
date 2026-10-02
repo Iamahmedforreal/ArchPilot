@@ -1,7 +1,4 @@
-import asyncio
-import json
 import time
-from typing import Any
 
 from arq.connections import ArqRedis
 
@@ -12,22 +9,34 @@ class RateLimitStorageError(Exception):
     """Raised when the Redis-backed rate limiter cannot read or write state."""
 
 
-_rate_limit_lock = asyncio.Lock()
+AI_RATE_LIMIT_SCRIPT = """
+local capacity = tonumber(ARGV[1])
+local refill_rate = tonumber(ARGV[2])
+local now = tonumber(ARGV[3])
+local tokens = redis.call('HGET', KEYS[1], 'tokens')
+local last_refill = redis.call('HGET', KEYS[1], 'last_refill_timestamp')
+
+if tokens == false or last_refill == false then
+    tokens = capacity
+else
+    local elapsed = math.max(0, now - tonumber(last_refill))
+    tokens = math.min(capacity, tonumber(tokens) + elapsed * refill_rate)
+end
+
+local allowed = 0
+if tokens >= 1 then
+    tokens = tokens - 1
+    allowed = 1
+end
+
+redis.call('HSET', KEYS[1], 'tokens', tokens, 'last_refill_timestamp', now)
+redis.call('EXPIRE', KEYS[1], math.ceil(capacity / refill_rate))
+return allowed
+"""
 
 
 def rate_limit_key(user_id: str) -> str:
     return f"rate_limit:ai:{user_id}"
-
-
-def _read_bucket(value: Any) -> tuple[float, float] | None:
-    if value is None:
-        return None
-
-    if isinstance(value, bytes):
-        value = value.decode("utf-8")
-
-    bucket = json.loads(value)
-    return float(bucket["tokens"]), float(bucket["last_refill_timestamp"])
 
 
 async def consume_ai_rate_limit(
@@ -36,37 +45,21 @@ async def consume_ai_rate_limit(
     *,
     now: float | None = None,
 ) -> bool:
-    """Consume one AI token for a user, serializing the Redis read/update locally."""
+    """Consume one AI token through an atomic Redis-side token-bucket update."""
     current_time = time.time() if now is None else now
     capacity = settings.ai_rate_limit_capacity
     refill_period = settings.ai_rate_limit_period_seconds
     refill_rate = capacity / refill_period
 
-    async with _rate_limit_lock:
-        try:
-            raw_bucket = await redis.get(rate_limit_key(user_id))
-            bucket = _read_bucket(raw_bucket)
-            if bucket is None:
-                tokens = float(capacity)
-                last_refill_timestamp = current_time
-            else:
-                previous_tokens, last_refill_timestamp = bucket
-                elapsed = max(0.0, current_time - last_refill_timestamp)
-                tokens = min(capacity, previous_tokens + elapsed * refill_rate)
-
-            allowed = tokens >= 1
-            if allowed:
-                tokens -= 1
-
-            await redis.set(
-                rate_limit_key(user_id),
-                json.dumps(
-                    {
-                        "tokens": tokens,
-                        "last_refill_timestamp": current_time,
-                    }
-                ),
-            )
-            return allowed
-        except Exception as exc:
-            raise RateLimitStorageError from exc
+    try:
+        result = await redis.eval(
+            AI_RATE_LIMIT_SCRIPT,
+            1,
+            rate_limit_key(user_id),
+            str(capacity),
+            str(refill_rate),
+            str(current_time),
+        )
+        return bool(int(result))
+    except Exception as exc:
+        raise RateLimitStorageError from exc

@@ -29,6 +29,17 @@ class Settings(BaseSettings):
 
         return value
 
+    @field_validator(
+        "ai_rate_limit_capacity",
+        "ai_rate_limit_period_seconds",
+    )
+    @classmethod
+    def validate_ai_rate_limit_values(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("AI rate-limit values must be positive")
+
+        return value
+
     @property
     def clerk_authorized_party_list(self) -> list[str] | None:
         if not self.clerk_authorized_parties:
