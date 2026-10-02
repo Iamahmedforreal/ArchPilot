@@ -1,6 +1,6 @@
 import re
 
-from fastapi import Request, Response
+from fastapi import HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
@@ -27,7 +27,15 @@ class AIRateLimitMiddleware(BaseHTTPMiddleware):
         if not is_ai_generation_request(request):
             return await call_next(request)
 
-        user_id = await get_current_user_id(request)
+        try:
+            user_id = await get_current_user_id(request)
+        except HTTPException as exc:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": exc.detail},
+                headers=exc.headers,
+            )
+
         try:
             allowed = await consume_ai_rate_limit(request.app.state.redis, user_id)
         except RateLimitStorageError:
