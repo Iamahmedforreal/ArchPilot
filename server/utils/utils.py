@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     gemini_model: str | None = None
     gemini_timeout_seconds: int | None = 120
     gemini_max_output_tokens: int | None = 6000
+    ai_rate_limit_capacity: int = 5
+    ai_rate_limit_period_seconds: int = 60
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
@@ -24,6 +26,17 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             normalized = value.strip()
             return normalized or None
+
+        return value
+
+    @field_validator(
+        "ai_rate_limit_capacity",
+        "ai_rate_limit_period_seconds",
+    )
+    @classmethod
+    def validate_ai_rate_limit_values(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("AI rate-limit values must be positive")
 
         return value
 

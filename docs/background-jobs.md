@@ -20,6 +20,10 @@ POST /api/projects/{project_id}/ai/spec
     -> return 202
 ```
 
+The design and spec submission steps are preceded by the AI rate-limit
+middleware. A request that receives `429` is rejected before an `AIRun` is
+created or an ARQ job is enqueued. See `docs/rate-limiting.md`.
+
 The queue helper is `server/service/ai_queue_service.py`. It creates these ARQ
 job IDs:
 
