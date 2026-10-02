@@ -134,6 +134,7 @@ async def post_project_ai_spec(
     "/{project_id}/ai/runs/{run_id}",
     response_model=AIRunStatusResponse,
 )
+
 async def get_project_ai_run(
     project_id: int,
     run_id: UUID,
@@ -141,15 +142,18 @@ async def get_project_ai_run(
     owner_id: str = Depends(get_current_user_id),
     session: AsyncSession = Depends(get_db),
 ) -> dict:
+    
     response.headers["Cache-Control"] = "no-store"
 
     try:
+        
         return await get_ai_run_status(
             session,
             owner_id,
             project_id,
             run_id,
         )
+    
     except (AIProjectNotFoundError, AIRunNotFoundError) as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

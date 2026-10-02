@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from arq import create_pool
 from fastapi import FastAPI
 
+from middleware.ai_rate_limit import AIRateLimitMiddleware
 from routes.ai_route import router as ai_router
 from routes.projects import router as projects_router
 from utils.redis import redis_settings
@@ -18,6 +19,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.add_middleware(AIRateLimitMiddleware)
 app.include_router(projects_router)
 app.include_router(ai_router)
 
