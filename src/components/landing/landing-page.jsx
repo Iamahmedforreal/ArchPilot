@@ -71,11 +71,26 @@ function LandingNode({ iconKey, label, className, visible }) {
 }
 
 function CanvasPreview() {
-  const [typedPrompt, setTypedPrompt] = useState("")
-  const [phase, setPhase] = useState("typing")
-  const [visibleNodeCount, setVisibleNodeCount] = useState(0)
+  const [prefersReducedMotion] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+  )
+  const [typedPrompt, setTypedPrompt] = useState(() =>
+    prefersReducedMotion ? demoPrompt : ""
+  )
+  const [phase, setPhase] = useState(() =>
+    prefersReducedMotion ? "complete" : "typing"
+  )
+  const [visibleNodeCount, setVisibleNodeCount] = useState(() =>
+    prefersReducedMotion ? previewNodes.length : 0
+  )
 
   useEffect(() => {
+    if (prefersReducedMotion) {
+      return undefined
+    }
+
     let timer
 
     if (phase === "typing") {
@@ -107,7 +122,7 @@ function CanvasPreview() {
     }
 
     return () => window.clearTimeout(timer)
-  }, [phase, typedPrompt, visibleNodeCount])
+  }, [phase, typedPrompt, visibleNodeCount, prefersReducedMotion])
 
   const status = {
     typing: { label: "typing prompt", className: "text-brand" },
