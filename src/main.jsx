@@ -31,6 +31,7 @@ createRoot(document.getElementById('root')).render(
       signUpUrl={SIGN_UP_URL}
       afterSignInUrl={AFTER_SIGN_IN_URL}
       afterSignUpUrl={AFTER_SIGN_UP_URL}
+      afterSignOutUrl="/"
     >
       <App />
     </ClerkProvider>

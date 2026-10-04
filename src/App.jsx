@@ -9,12 +9,12 @@ import { EditorCanvas } from "@/components/editor/editor-canvas"
 import { EditorNavbar } from "@/components/editor/editor-navbar"
 import { ProjectDialogs } from "@/components/editor/project-dialogs"
 import { ProjectSidebar } from "@/components/editor/project-sidebar"
+import { LandingPage } from "@/components/landing/landing-page"
 import { Button } from "@/components/ui/button"
 import { useAiDesign } from "@/hooks/use-ai-design"
 import { useProjectActions } from "@/hooks/use-project-actions"
 import {
   AFTER_SIGN_IN_URL,
-  SIGN_IN_URL,
   isPublicAuthRoute,
   isSignInRoute,
   isSignUpRoute,
@@ -406,7 +406,7 @@ function App() {
   }
 
   if (pathname === "/") {
-    return <RedirectTo to={isSignedIn ? AFTER_SIGN_IN_URL : SIGN_IN_URL} />
+    return <LandingPage isSignedIn={isSignedIn} onNavigate={navigate} />
   }
 
   if (!isSignedIn && !isPublicAuthRoute(pathname)) {
