@@ -406,7 +406,11 @@ function App() {
   }
 
   if (pathname === "/") {
-    return <LandingPage isSignedIn={isSignedIn} onNavigate={navigate} />
+    if (isSignedIn) {
+      return <RedirectTo to={AFTER_SIGN_IN_URL} />
+    }
+
+    return <LandingPage isSignedIn={false} onNavigate={navigate} />
   }
 
   if (!isSignedIn && !isPublicAuthRoute(pathname)) {
