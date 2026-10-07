@@ -169,3 +169,50 @@ body {
   );
   background-size: 39px 39px;
 }
+
+.ai-chat-scroll {
+  scrollbar-width: none;
+  scrollbar-color: transparent transparent;
+}
+
+.ai-chat-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.ai-chat-scroll-active {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-subtle) transparent;
+}
+
+.ai-chat-scroll-active::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.ai-chat-scroll-active::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--border-subtle);
+}
+
+.ai-sidebar-panel {
+  background-color: var(--bg-surface);
+}
+
+.ai-composer-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  scrollbar-color: transparent transparent;
+}
+
+.ai-composer-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+@media (min-width: 768px) {
+  .ai-sidebar-panel {
+    width: clamp(20rem, 28vw, 26rem);
+    height: min(42rem, calc(100% - 1.5rem));
+  }
+}

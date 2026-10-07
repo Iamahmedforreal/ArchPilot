@@ -1,11 +1,11 @@
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react"
 import {
+  ArrowUp,
   Download,
   FileText,
   LoaderCircle,
   RefreshCw,
   Replace,
-  Send,
   Sparkles,
   X,
 } from "lucide-react"
@@ -19,8 +19,9 @@ import { cn } from "@/lib/utils"
 const STARTER_PROMPTS = [
   "Design an e-commerce backend",
   "Create a chat app architecture",
-  "Build a CI/CD pipeline",
+  "Design a Uber clone architecture",
 ]
+const MAX_PROMPT_HEIGHT = 192
 
 function getIsMobileDialogViewport() {
   if (typeof window === "undefined") {
@@ -104,6 +105,18 @@ function AiArchitectTab({
   onSubmitMessage,
 }) {
   const textareaRef = useRef(null)
+  const scrollbarHideTimeoutRef = useRef(null)
+  const isMessagesPointerInsideRef = useRef(false)
+  const isMessagesFocusInsideRef = useRef(false)
+  const [isMessagesScrollActive, setIsMessagesScrollActive] = useState(false)
+
+  useEffect(() => {
+    return () => {
+      if (scrollbarHideTimeoutRef.current !== null) {
+        window.clearTimeout(scrollbarHideTimeoutRef.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     const textarea = textareaRef.current
@@ -113,15 +126,14 @@ function AiArchitectTab({
     }
 
     textarea.style.height = "auto"
-    textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`
+    textarea.style.height = `${Math.min(textarea.scrollHeight, MAX_PROMPT_HEIGHT)}px`
   }, [draft])
 
   function handleKeyDown(event) {
     if (
       event.key !== "Enter" ||
       event.shiftKey ||
-      event.nativeEvent.isComposing ||
-      !window.matchMedia("(min-width: 768px)").matches
+      event.nativeEvent.isComposing
     ) {
       return
     }
@@ -132,9 +144,75 @@ function AiArchitectTab({
 
   const canSubmit = draft.trim().length > 0 && !isWorking
 
+  function showMessagesScrollbar() {
+    setIsMessagesScrollActive(true)
+
+    if (scrollbarHideTimeoutRef.current !== null) {
+      window.clearTimeout(scrollbarHideTimeoutRef.current)
+      scrollbarHideTimeoutRef.current = null
+    }
+  }
+
+  function hideMessagesScrollbarSoon() {
+    if (
+      isMessagesPointerInsideRef.current ||
+      isMessagesFocusInsideRef.current
+    ) {
+      return
+    }
+
+    if (scrollbarHideTimeoutRef.current !== null) {
+      window.clearTimeout(scrollbarHideTimeoutRef.current)
+    }
+
+    scrollbarHideTimeoutRef.current = window.setTimeout(() => {
+      setIsMessagesScrollActive(false)
+      scrollbarHideTimeoutRef.current = null
+    }, 800)
+  }
+
+  function handleMessagesPointerEnter() {
+    isMessagesPointerInsideRef.current = true
+    showMessagesScrollbar()
+  }
+
+  function handleMessagesPointerLeave() {
+    isMessagesPointerInsideRef.current = false
+    hideMessagesScrollbarSoon()
+  }
+
+  function handleMessagesFocusCapture() {
+    isMessagesFocusInsideRef.current = true
+    showMessagesScrollbar()
+  }
+
+  function handleMessagesBlurCapture(event) {
+    if (event.currentTarget.contains(event.relatedTarget)) {
+      return
+    }
+
+    isMessagesFocusInsideRef.current = false
+    hideMessagesScrollbarSoon()
+  }
+
+  function handleMessagesScroll() {
+    showMessagesScrollbar()
+    hideMessagesScrollbarSoon()
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
+      <div
+        className={cn(
+          "ai-chat-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1",
+          isMessagesScrollActive && "ai-chat-scroll-active"
+        )}
+        onPointerEnter={handleMessagesPointerEnter}
+        onPointerLeave={handleMessagesPointerLeave}
+        onFocusCapture={handleMessagesFocusCapture}
+        onBlurCapture={handleMessagesBlurCapture}
+        onScroll={handleMessagesScroll}
+      >
         {messages.length === 0 ? (
           <div className="py-1">
             <p className="text-sm font-semibold leading-5 text-copy-primary">
@@ -180,36 +258,37 @@ function AiArchitectTab({
         )}
       </div>
 
-      <div className="mt-3 shrink-0 border-t border-surface-border pt-3">
-        <p className="mb-2 text-[11px] leading-4 text-copy-muted">
-          AI can make mistakes, so double-check important details.
-        </p>
-        <div className="flex items-end gap-2">
+      <div className="mt-2 shrink-0 border-t border-surface-border bg-transparent pt-3">
+        <div className="relative">
           <Textarea
             ref={textareaRef}
             value={draft}
-            placeholder="Ask a question..."
+            placeholder="Ask for follow-up changes..."
             onChange={(event) => onDraftChange(event.target.value)}
             onKeyDown={handleKeyDown}
-            className="max-h-28 min-h-11 resize-none rounded-xl border border-transparent bg-subtle px-3 py-2 text-sm text-copy-primary shadow-none placeholder:text-copy-muted focus-visible:border-brand/60 focus-visible:ring-1 focus-visible:ring-brand/30"
+            className="ai-composer-scroll max-h-48 min-h-14 resize-none overflow-y-auto rounded-2xl border border-surface-border bg-elevated px-3.5 py-3.5 pr-14 text-sm leading-5 text-copy-primary shadow-inner shadow-black/20 placeholder:text-copy-muted focus-visible:border-brand/60 focus-visible:ring-1 focus-visible:ring-brand/30"
             rows={1}
           />
           <Button
             type="button"
             size="icon"
             aria-label="Send message"
-            aria-disabled={!canSubmit}
             title="Send"
             onClick={() => onSubmitMessage()}
-            disabled={isWorking}
+            disabled={!canSubmit}
             className={cn(
-              "group/button h-11 w-11 shrink-0 rounded-xl bg-transparent text-copy-muted shadow-none transition-all duration-200 ease-out hover:-translate-y-0.5 hover:bg-accent-dim hover:text-brand focus-visible:ring-brand/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40",
-              canSubmit && "text-brand hover:bg-accent-dim hover:text-brand-hover"
+              "group/button absolute bottom-2 right-2 h-9 w-9 rounded-full shadow-lg transition-all duration-200 ease-out focus-visible:ring-2 focus-visible:ring-brand/40 active:scale-95 disabled:cursor-not-allowed",
+              canSubmit
+                ? "bg-brand text-primary-foreground hover:-translate-y-0.5 hover:bg-brand-hover"
+                : "bg-subtle text-copy-faint opacity-70"
             )}
           >
-            <Send className="h-6 w-6 transition-transform duration-200 ease-out group-hover/button:translate-x-0.5 group-hover/button:-translate-y-0.5" />
+            <ArrowUp className="h-4 w-4 transition-transform duration-200 ease-out group-hover/button:-translate-y-0.5" />
           </Button>
         </div>
+        <p className="mt-2 text-[11px] leading-4 text-copy-muted">
+          AI can make mistakes, so double-check important details.
+        </p>
       </div>
     </div>
   )
@@ -651,7 +730,7 @@ function AiSidebar({
         onTouchStart={(event) => event.stopPropagation()}
         onWheel={(event) => event.stopPropagation()}
         className={cn(
-          "fixed inset-x-2 z-40 flex max-h-[calc(100dvh-1rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-h-[min(32rem,calc(100dvh-2rem))] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-2xl border border-surface-border bg-base/95 p-3 text-copy-primary shadow-2xl backdrop-blur-xl transition-transform duration-200 ease-out md:absolute md:bottom-3 md:left-auto md:right-3 md:top-3 md:max-h-none md:min-h-0 md:w-[360px] md:rounded-[1.4rem] md:p-3.5",
+          "ai-sidebar-panel fixed inset-x-2 z-40 flex max-h-[calc(100dvh-1rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] min-h-[min(32rem,calc(100dvh-2rem))] max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-2xl border border-surface-border bg-surface/95 p-4 text-copy-primary shadow-2xl backdrop-blur-xl transition-transform duration-200 ease-out md:absolute md:bottom-3 md:left-auto md:right-3 md:top-auto md:min-h-0 md:rounded-3xl md:p-5",
           isOpen
             ? "translate-y-0 md:translate-x-0"
             : "pointer-events-none translate-y-[calc(100%+1rem)] md:translate-x-[calc(100%+1rem)] md:translate-y-0"

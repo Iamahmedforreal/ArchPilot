@@ -22,15 +22,11 @@ import {
 } from "@/lib/auth-routes"
 import { fetchCanvas, fetchProject } from "@/lib/project-api"
 
-function isDesktopViewport() {
-  return window.matchMedia("(min-width: 768px)").matches
-}
-
 /** Coordinates editor workspace loading, canvas saves, and navigation. */
 function EditorShell({ pathname, navigate }) {
   const { getToken } = useAuth()
   const [isProjectSidebarOpen, setIsProjectSidebarOpen] = useState(false)
-  const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(isDesktopViewport)
+  const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(false)
   const [currentProject, setCurrentProject] = useState(null)
   const [projectAccessState, setProjectAccessState] = useState("idle")
   const [projectRequestVersion, setProjectRequestVersion] = useState(0)
@@ -51,8 +47,6 @@ function EditorShell({ pathname, navigate }) {
       if (isCurrentWorkspace) {
         if (!activeWorkspaceId) {
           setIsAiSidebarOpen(false)
-        } else if (isDesktopViewport()) {
-          setIsAiSidebarOpen(true)
         }
 
         setCanvasSaveStatus("idle")
