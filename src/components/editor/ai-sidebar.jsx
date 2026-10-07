@@ -106,6 +106,8 @@ function AiArchitectTab({
 }) {
   const textareaRef = useRef(null)
   const scrollbarHideTimeoutRef = useRef(null)
+  const isMessagesPointerInsideRef = useRef(false)
+  const isMessagesFocusInsideRef = useRef(false)
   const [isMessagesScrollActive, setIsMessagesScrollActive] = useState(false)
 
   useEffect(() => {
@@ -152,6 +154,13 @@ function AiArchitectTab({
   }
 
   function hideMessagesScrollbarSoon() {
+    if (
+      isMessagesPointerInsideRef.current ||
+      isMessagesFocusInsideRef.current
+    ) {
+      return
+    }
+
     if (scrollbarHideTimeoutRef.current !== null) {
       window.clearTimeout(scrollbarHideTimeoutRef.current)
     }
@@ -162,6 +171,35 @@ function AiArchitectTab({
     }, 800)
   }
 
+  function handleMessagesPointerEnter() {
+    isMessagesPointerInsideRef.current = true
+    showMessagesScrollbar()
+  }
+
+  function handleMessagesPointerLeave() {
+    isMessagesPointerInsideRef.current = false
+    hideMessagesScrollbarSoon()
+  }
+
+  function handleMessagesFocusCapture() {
+    isMessagesFocusInsideRef.current = true
+    showMessagesScrollbar()
+  }
+
+  function handleMessagesBlurCapture(event) {
+    if (event.currentTarget.contains(event.relatedTarget)) {
+      return
+    }
+
+    isMessagesFocusInsideRef.current = false
+    hideMessagesScrollbarSoon()
+  }
+
+  function handleMessagesScroll() {
+    showMessagesScrollbar()
+    hideMessagesScrollbarSoon()
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <div
@@ -169,14 +207,11 @@ function AiArchitectTab({
           "ai-chat-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1",
           isMessagesScrollActive && "ai-chat-scroll-active"
         )}
-        onMouseEnter={showMessagesScrollbar}
-        onMouseLeave={hideMessagesScrollbarSoon}
-        onFocusCapture={showMessagesScrollbar}
-        onBlurCapture={hideMessagesScrollbarSoon}
-        onScroll={() => {
-          showMessagesScrollbar()
-          hideMessagesScrollbarSoon()
-        }}
+        onPointerEnter={handleMessagesPointerEnter}
+        onPointerLeave={handleMessagesPointerLeave}
+        onFocusCapture={handleMessagesFocusCapture}
+        onBlurCapture={handleMessagesBlurCapture}
+        onScroll={handleMessagesScroll}
       >
         {messages.length === 0 ? (
           <div className="py-1">
@@ -231,7 +266,7 @@ function AiArchitectTab({
             placeholder="Ask for follow-up changes..."
             onChange={(event) => onDraftChange(event.target.value)}
             onKeyDown={handleKeyDown}
-            className="ai-composer-scroll max-h-48 min-h-11 resize-none overflow-y-auto rounded-2xl border border-surface-border bg-elevated px-3.5 py-3 pr-14 text-sm leading-5 text-copy-primary shadow-inner shadow-black/20 placeholder:text-copy-muted focus-visible:border-brand/60 focus-visible:ring-1 focus-visible:ring-brand/30"
+            className="ai-composer-scroll max-h-48 min-h-14 resize-none overflow-y-auto rounded-2xl border border-surface-border bg-elevated px-3.5 py-3.5 pr-14 text-sm leading-5 text-copy-primary shadow-inner shadow-black/20 placeholder:text-copy-muted focus-visible:border-brand/60 focus-visible:ring-1 focus-visible:ring-brand/30"
             rows={1}
           />
           <Button
