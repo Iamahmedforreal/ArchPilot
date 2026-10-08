@@ -1,9 +1,9 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from model.ai import AIRun, AIRunKind, AIRunStatus, FileBlob
+from model.ai import AIMessage, AIMessageRole, AIRun, AIRunKind, AIRunStatus, FileBlob
 from model.project import Project
 from schema.ai_canvas_schema import MAX_AI_EDGES, MAX_AI_NODES
 from service.canvas_service import load_project_canvas
@@ -97,6 +97,15 @@ async def create_ai_design_run(
         status=AIRunStatus.PENDING,
     )
     session.add(run)
+    await session.flush()
+    session.add(
+        AIMessage(
+            project_id=owned_project_id,
+            run_id=run.id,
+            role=AIMessageRole.USER,
+            message=message,
+        )
+    )
     await session.commit()
     return _serialize_run(run)
 
@@ -154,6 +163,11 @@ async def mark_ai_run_enqueue_failed(
     run.status = AIRunStatus.FAILED
     run.error_code = "QUEUE_DELIVERY_FAILED"
     run.error_message = "AI generation could not be queued."
+    await session.execute(
+        update(AIMessage)
+        .where(AIMessage.run_id == run_id)
+        .values(response=run.error_message)
+    )
     await session.commit()
 
 
@@ -199,9 +213,48 @@ async def get_ai_run_status(
         "kind": run.kind.value,
         "status": run.status.value,
         "stage": run.stage,
+        "response": getattr(run, "explanation", None),
         "result": result,
         "error": error,
     }
+
+
+async def get_project_ai_messages(
+    session: AsyncSession,
+    owner_id: str,
+    project_id: int,
+) -> list[dict]:
+    project = await get_owned_project(session, owner_id, project_id)
+    if project is None:
+        raise AIProjectNotFoundError
+
+    messages = await session.scalars(
+        select(AIMessage)
+        .where(AIMessage.project_id == project_id)
+        .order_by(AIMessage.created_at.asc(), AIMessage.id.asc())
+    )
+
+    result = []
+    for message in messages:
+        result.append(
+            {
+                "id": message.id,
+                "role": message.role.value,
+                "message": message.message,
+                "created_at": message.created_at,
+            }
+        )
+        if message.response:
+            result.append(
+                {
+                    "id": message.id,
+                    "role": AIMessageRole.ASSISTANT.value,
+                    "message": message.response,
+                    "created_at": message.created_at,
+                }
+            )
+
+    return result
 
 
 async def get_project_file_blob(

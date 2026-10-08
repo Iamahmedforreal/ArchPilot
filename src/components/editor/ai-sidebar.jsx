@@ -1,4 +1,11 @@
-import { useEffect, useEffectEvent, useId, useRef, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useId,
+  useRef,
+  useState,
+} from "react"
 import {
   ArrowUp,
   Download,
@@ -13,15 +20,20 @@ import {
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { downloadProjectFile, fetchAiRun, submitAiSpec } from "@/lib/project-api"
+import {
+  downloadProjectFile,
+  fetchAiMessages,
+  fetchAiRun,
+  submitAiSpec,
+} from "@/lib/project-api"
 import { cn } from "@/lib/utils"
 
+const MAX_PROMPT_HEIGHT = 192
 const STARTER_PROMPTS = [
   "Design an e-commerce backend",
   "Create a chat app architecture",
   "Design a Uber clone architecture",
 ]
-const MAX_PROMPT_HEIGHT = 192
 
 function getIsMobileDialogViewport() {
   if (typeof window === "undefined") {
@@ -51,22 +63,30 @@ function ChatBubble({ message }) {
 }
 
 function WorkflowStatus({ workflow, isWorking, onApply, onCheckStatusAgain }) {
-  if (!workflow.statusMessage) {
+  const isProgressPhase = ["submitting", "polling", "paused"].includes(
+    workflow.phase
+  )
+  const canReplaceCanvas =
+    workflow.phase === "ready" && workflow.requiresReplacement
+
+  if (!isProgressPhase && !canReplaceCanvas) {
     return null
   }
 
   return (
     <div className="flex justify-start" role="status" aria-live="polite">
       <div className="max-w-[88%] rounded-xl border border-surface-border bg-elevated px-3 py-2 text-sm leading-5 text-ai-text">
-        <div className="flex items-start gap-2">
-          {isWorking && (
-            <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-brand motion-reduce:animate-none" />
-          )}
-          <span className="break-words [overflow-wrap:anywhere]">
-            {workflow.statusMessage}
-          </span>
-        </div>
-        {workflow.phase === "ready" && workflow.requiresReplacement && (
+        {isProgressPhase && workflow.statusMessage && (
+          <div className="flex items-start gap-2">
+            {isWorking && (
+              <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-brand motion-reduce:animate-none" />
+            )}
+            <span className="break-words [overflow-wrap:anywhere]">
+              {workflow.statusMessage}
+            </span>
+          </div>
+        )}
+        {canReplaceCanvas && (
           <Button
             type="button"
             size="sm"
@@ -219,7 +239,7 @@ function AiArchitectTab({
               How can I help with this design?
             </p>
             <p className="mt-1 text-xs leading-5 text-copy-muted">
-              Choose a starting point or ask your own question.
+              Ask a question or request a change to this project.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {STARTER_PROMPTS.map((prompt) => (
@@ -378,11 +398,104 @@ function AiSidebar({
   const triggerRef = useRef(null)
   const dialogRef = useRef(null)
   const closeButtonRef = useRef(null)
+  const messageLoadAbortRef = useRef(null)
   const closeAssistant = useEffectEvent(onClose)
   const [isMobileDialog, setIsMobileDialog] = useState(getIsMobileDialogViewport)
 
   const isWorking =
     workflow.phase === "submitting" || workflow.phase === "polling"
+
+  const loadProjectMessages = useCallback(
+    async (signal) => {
+      if (!projectId) {
+        return []
+      }
+
+      const token = await getToken()
+      if (!token) {
+        return []
+      }
+
+      const savedMessages = await fetchAiMessages(token, projectId, { signal })
+
+      return savedMessages.map((message, index) => ({
+        id: `${message.id}-${message.role}-${index}`,
+        role: message.role.toLowerCase(),
+        content: message.message,
+      }))
+    },
+    [getToken, projectId]
+  )
+
+  useEffect(() => {
+    const abortController = new AbortController()
+    let ignore = false
+    messageLoadAbortRef.current?.abort()
+    messageLoadAbortRef.current = abortController
+
+    setMessages([])
+
+    if (!projectId) {
+      return () => abortController.abort()
+    }
+
+    loadProjectMessages(abortController.signal)
+      .then((savedMessages) => {
+        if (!ignore && messageLoadAbortRef.current === abortController) {
+          setMessages(savedMessages)
+        }
+      })
+      .catch((error) => {
+        if (!ignore && error.name !== "AbortError") {
+          console.error(error)
+        }
+      })
+
+    return () => {
+      ignore = true
+      abortController.abort()
+      if (messageLoadAbortRef.current === abortController) {
+        messageLoadAbortRef.current = null
+      }
+    }
+  }, [loadProjectMessages, projectId])
+
+  useEffect(() => {
+    const terminalPhases = new Set(["applied", "ready", "failed", "cancelled"])
+
+    if (!projectId || !terminalPhases.has(workflow.phase)) {
+      return
+    }
+
+    const abortController = new AbortController()
+    let ignore = false
+    messageLoadAbortRef.current?.abort()
+    messageLoadAbortRef.current = abortController
+
+    loadProjectMessages(abortController.signal)
+      .then((savedMessages) => {
+        if (!ignore && messageLoadAbortRef.current === abortController) {
+          setMessages(savedMessages)
+        }
+      })
+      .catch((error) => {
+        if (!ignore && error.name !== "AbortError") {
+          console.error(error)
+        }
+      })
+
+    return () => {
+      ignore = true
+      abortController.abort()
+      if (messageLoadAbortRef.current === abortController) {
+        messageLoadAbortRef.current = null
+      }
+    }
+  }, [loadProjectMessages, projectId, workflow.phase, workflow.runId])
+
+  useEffect(() => {
+    return () => messageLoadAbortRef.current?.abort()
+  }, [])
 
   useEffect(() => {
     if (specWorkflow.phase !== "polling" || !specWorkflow.runId || !projectId) {
@@ -613,14 +726,35 @@ function AiSidebar({
       return
     }
 
-    setMessages((currentMessages) => [
-      ...currentMessages,
-      { id: crypto.randomUUID(), role: "user", content },
-    ])
     const submitted = await onSubmit(content)
 
     if (submitted) {
+      messageLoadAbortRef.current?.abort()
+      messageLoadAbortRef.current = null
+      setMessages((currentMessages) => [
+        ...currentMessages,
+        { id: crypto.randomUUID(), role: "user", content },
+      ])
       setDraft("")
+
+      const abortController = new AbortController()
+      messageLoadAbortRef.current = abortController
+      loadProjectMessages(abortController.signal)
+        .then((savedMessages) => {
+          if (messageLoadAbortRef.current === abortController) {
+            setMessages(savedMessages)
+          }
+        })
+        .catch((error) => {
+          if (error.name !== "AbortError") {
+            console.error(error)
+          }
+        })
+        .finally(() => {
+          if (messageLoadAbortRef.current === abortController) {
+            messageLoadAbortRef.current = null
+          }
+        })
     }
   }
 

@@ -27,6 +27,7 @@ def model_response(**changes) -> AIDesignModelResponse:
 def mocked_session(scalar_result):
     session = MagicMock()
     session.scalar = AsyncMock(return_value=scalar_result)
+    session.execute = AsyncMock()
     session.commit = AsyncMock()
     context = MagicMock()
     context.__aenter__ = AsyncMock(return_value=session)

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest"
 
 import {
   downloadProjectFile,
+  fetchAiMessages,
   fetchAiRun,
   submitAiSpec,
 } from "@/lib/project-api"
@@ -45,6 +46,29 @@ describe("spec generation", () => {
     await expect(fetchAiRun("token", 7, "run-1")).resolves.toMatchObject({
       status: "SUCCEEDED",
     })
+    vi.unstubAllGlobals()
+  })
+
+  it("loads the saved project conversation", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      response([
+        {
+          id: "message-1",
+          role: "USER",
+          message: "Focus on the API",
+          created_at: "2026-10-08T10:00:00Z",
+        },
+      ])
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(fetchAiMessages("token", 7)).resolves.toEqual([
+      expect.objectContaining({ role: "USER" }),
+    ])
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/projects/7/ai/messages",
+      expect.objectContaining({ cache: "no-store" })
+    )
     vi.unstubAllGlobals()
   })
 

@@ -8,6 +8,7 @@ from routes.auth import get_current_user_id
 from schema.ai_chat_schema import (
     AIMessageRequest,
     AIMessageResponse,
+    AIConversationMessageResponse,
     AISpecRequest,
     AIRunStatusResponse,
 )
@@ -21,6 +22,7 @@ from service.ai_run_service import (
     create_ai_design_run,
     create_ai_spec_run,
     get_ai_run_status,
+    get_project_ai_messages,
     get_project_file_blob,
     mark_ai_run_enqueue_failed,
 )
@@ -33,6 +35,28 @@ from service.file_blob_service import (
 
  
 router = APIRouter(prefix="/api/projects", tags=["ai"])
+
+
+@router.get(
+    "/{project_id}/ai/messages",
+    response_model=list[AIConversationMessageResponse],
+)
+async def get_project_ai_messages_route(
+    project_id: int,
+    response: Response,
+    owner_id: str = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    response.headers["Cache-Control"] = "no-store"
+
+    try:
+        return await get_project_ai_messages(session, owner_id, project_id)
+    except AIProjectNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found",
+            headers={"Cache-Control": "no-store"},
+        ) from exc
 
 
 @router.post(
@@ -61,7 +85,22 @@ async def post_project_ai_design(
             detail="Project not found",
         ) from exc
 
-    await enqueue_ai_run(request.app.state.redis, run["run_id"])
+    try:
+        job = await enqueue_ai_run(request.app.state.redis, run["run_id"])
+    except Exception as exc:
+        await mark_ai_run_enqueue_failed(session, run["run_id"])
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="AI generation could not be queued",
+        ) from exc
+
+    if job is None:
+        await mark_ai_run_enqueue_failed(session, run["run_id"])
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="AI generation could not be queued",
+        )
+
     return run
 
 
