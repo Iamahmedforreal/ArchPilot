@@ -6,7 +6,7 @@ from uuid import UUID
 
 from sqlalchemy import select, update
 
-from model.ai import AIRun, AIRunKind, AIRunStatus, FileBlob
+from model.ai import AIMessage, AIRun, AIRunKind, AIRunStatus, FileBlob
 from model.db import async_session
 from schema.ai_canvas_schema import AIDesignModelResponse
 from service.file_blob_service import save_markdown_file
@@ -126,6 +126,12 @@ async def _transition_cancelled_run(run_id: UUID, *, retry: bool) -> bool:
             .values(**values)
             .returning(AIRun.id)
         )
+        if updated_id is not None:
+            await session.execute(
+                update(AIMessage)
+                .where(AIMessage.run_id == run_id)
+                .values(response=None if retry else INTERRUPTED_ERROR_MESSAGE)
+            )
         await session.commit()
         return updated_id is not None
 
@@ -156,6 +162,12 @@ async def _persist_success(
             )
             .returning(AIRun.id)
         )
+        if updated_id is not None:
+            await session.execute(
+                update(AIMessage)
+                .where(AIMessage.run_id == run_id)
+                .values(response=response.explanation)
+            )
         await session.commit()
         return updated_id is not None
 
@@ -185,6 +197,12 @@ async def _persist_failure(
             )
             .returning(AIRun.id)
         )
+        if updated_id is not None:
+            await session.execute(
+                update(AIMessage)
+                .where(AIMessage.run_id == run_id)
+                .values(response=explanation or error_message)
+            )
         await session.commit()
         return updated_id is not None
 

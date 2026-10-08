@@ -154,6 +154,19 @@ async function fetchAiRun(token, projectId, runId, options = {}) {
   return parseProjectResponse(response)
 }
 
+async function fetchAiMessages(token, projectId, options = {}) {
+  const response = await fetch(
+    `${API_BASE_URL}/api/projects/${projectId}/ai/messages`,
+    {
+      cache: "no-store",
+      headers: getProjectHeaders(token),
+      signal: options.signal,
+    }
+  )
+
+  return parseProjectResponse(response)
+}
+
 async function downloadProjectFile(token, projectId, fileId, filename) {
   const response = await fetch(
     `${API_BASE_URL}/api/projects/${projectId}/files/${fileId}/download`,
@@ -185,6 +198,7 @@ export {
   deleteProject,
   downloadProjectFile,
   fetchAiRun,
+  fetchAiMessages,
   fetchCanvas,
   fetchProject,
   fetchProjects,

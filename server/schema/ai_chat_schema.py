@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
@@ -35,6 +36,13 @@ class AIMessageResponse(StrictSchema):
     status: AIRunStatusValue
 
 
+class AIConversationMessageResponse(StrictSchema):
+    id: UUID
+    role: Literal["USER", "ASSISTANT"]
+    message: str
+    created_at: datetime
+
+
 class AISpecRequest(StrictSchema):
     expected_canvas_revision: str
     instruction: SpecInstructionText | None = None
@@ -50,5 +58,6 @@ class AIRunStatusResponse(StrictSchema):
     kind: AIRunKindValue
     status: AIRunStatusValue
     stage: str | None = None
+    response: str | None = None
     result: dict[str, Any] | None = None
     error: AIRunErrorResponse | None = None

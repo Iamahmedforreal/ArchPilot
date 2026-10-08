@@ -32,6 +32,11 @@ class AIRunKind(str, enum.Enum):
     SPEC = "SPEC"
 
 
+class AIMessageRole(str, enum.Enum):
+    USER = "USER"
+    ASSISTANT = "ASSISTANT"
+
+
 class FileBlob(Base):
     __tablename__ = "files_blob"
     __table_args__ = (
@@ -127,3 +132,48 @@ class AIRun(Base):
 
     project: Mapped[Project] = relationship()
     file_blob: Mapped[FileBlob | None] = relationship()
+
+
+class AIMessage(Base):
+    __tablename__ = "ai_messages"
+    __table_args__ = (
+        Index(
+            "ix_ai_messages_project_id_created_at",
+            "project_id",
+            "created_at",
+        ),
+        Index(
+            "ix_ai_messages_project_id_role",
+            "project_id",
+            "role",
+        ),
+        Index("ix_ai_messages_run_id", "run_id", unique=True),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    project_id: Mapped[int] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    run_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("ai_runs.id", ondelete="CASCADE"),
+        nullable=True,
+    )
+    role: Mapped[AIMessageRole] = mapped_column(
+        Enum(AIMessageRole, name="ai_message_role"),
+        nullable=False,
+    )
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+    project: Mapped[Project] = relationship()
+    run: Mapped[AIRun | None] = relationship()
