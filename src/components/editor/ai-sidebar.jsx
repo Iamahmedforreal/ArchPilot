@@ -398,6 +398,7 @@ function AiSidebar({
   const triggerRef = useRef(null)
   const dialogRef = useRef(null)
   const closeButtonRef = useRef(null)
+  const messageLoadAbortRef = useRef(null)
   const closeAssistant = useEffectEvent(onClose)
   const [isMobileDialog, setIsMobileDialog] = useState(getIsMobileDialogViewport)
 
@@ -429,6 +430,8 @@ function AiSidebar({
   useEffect(() => {
     const abortController = new AbortController()
     let ignore = false
+    messageLoadAbortRef.current?.abort()
+    messageLoadAbortRef.current = abortController
 
     setMessages([])
 
@@ -438,7 +441,7 @@ function AiSidebar({
 
     loadProjectMessages(abortController.signal)
       .then((savedMessages) => {
-        if (!ignore) {
+        if (!ignore && messageLoadAbortRef.current === abortController) {
           setMessages(savedMessages)
         }
       })
@@ -451,6 +454,9 @@ function AiSidebar({
     return () => {
       ignore = true
       abortController.abort()
+      if (messageLoadAbortRef.current === abortController) {
+        messageLoadAbortRef.current = null
+      }
     }
   }, [loadProjectMessages, projectId])
 
@@ -463,10 +469,12 @@ function AiSidebar({
 
     const abortController = new AbortController()
     let ignore = false
+    messageLoadAbortRef.current?.abort()
+    messageLoadAbortRef.current = abortController
 
     loadProjectMessages(abortController.signal)
       .then((savedMessages) => {
-        if (!ignore) {
+        if (!ignore && messageLoadAbortRef.current === abortController) {
           setMessages(savedMessages)
         }
       })
@@ -479,8 +487,15 @@ function AiSidebar({
     return () => {
       ignore = true
       abortController.abort()
+      if (messageLoadAbortRef.current === abortController) {
+        messageLoadAbortRef.current = null
+      }
     }
   }, [loadProjectMessages, projectId, workflow.phase, workflow.runId])
+
+  useEffect(() => {
+    return () => messageLoadAbortRef.current?.abort()
+  }, [])
 
   useEffect(() => {
     if (specWorkflow.phase !== "polling" || !specWorkflow.runId || !projectId) {
@@ -714,11 +729,32 @@ function AiSidebar({
     const submitted = await onSubmit(content)
 
     if (submitted) {
+      messageLoadAbortRef.current?.abort()
+      messageLoadAbortRef.current = null
       setMessages((currentMessages) => [
         ...currentMessages,
         { id: crypto.randomUUID(), role: "user", content },
       ])
       setDraft("")
+
+      const abortController = new AbortController()
+      messageLoadAbortRef.current = abortController
+      loadProjectMessages(abortController.signal)
+        .then((savedMessages) => {
+          if (messageLoadAbortRef.current === abortController) {
+            setMessages(savedMessages)
+          }
+        })
+        .catch((error) => {
+          if (error.name !== "AbortError") {
+            console.error(error)
+          }
+        })
+        .finally(() => {
+          if (messageLoadAbortRef.current === abortController) {
+            messageLoadAbortRef.current = null
+          }
+        })
     }
   }
 
