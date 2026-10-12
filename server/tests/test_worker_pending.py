@@ -14,6 +14,7 @@ from workers.ai_chat_worker import (
     _claim_run,
     _persist_response,
     _persist_success,
+    _prepare_design_snapshot,
     _transition_cancelled_run,
     generate_canvas,
 )
@@ -43,6 +44,64 @@ def statement_values(statement):
 
 
 class WorkerPersistenceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_design_snapshot_is_saved_when_revision_matches(self):
+        run_id = uuid4()
+        project = SimpleNamespace(id=7, canvas_json_path="canvas/7.json")
+        canvas = SMALL_CANVAS_EXAMPLE["canvas"]
+        run = SimpleNamespace(
+            id=run_id,
+            project_id=7,
+            base_canvas_revision="rev-1",
+        )
+        session = MagicMock()
+        session.scalar = AsyncMock(side_effect=[project, run_id])
+        session.commit = AsyncMock()
+        context = MagicMock()
+        context.__aenter__ = AsyncMock(return_value=session)
+        context.__aexit__ = AsyncMock(return_value=None)
+
+        with (
+            patch("workers.ai_chat_worker.async_session", MagicMock(return_value=context)),
+            patch(
+                "workers.ai_chat_worker.load_project_canvas",
+                AsyncMock(return_value=(canvas, "rev-1")),
+            ),
+        ):
+            ready, snapshot = await _prepare_design_snapshot(run)
+
+        self.assertTrue(ready)
+        self.assertEqual(snapshot, canvas)
+        statement = session.scalar.await_args_list[1].args[0]
+        values = statement_values(statement)
+        self.assertEqual(values["base_canvas_revision"], "rev-1")
+        self.assertEqual(values["input_canvas_json"], canvas)
+
+    async def test_design_snapshot_rejects_stale_revision(self):
+        run = SimpleNamespace(
+            id=uuid4(),
+            project_id=7,
+            base_canvas_revision="rev-1",
+        )
+        project = SimpleNamespace(id=7, canvas_json_path="canvas/7.json")
+        session = MagicMock()
+        session.scalar = AsyncMock(return_value=project)
+        context = MagicMock()
+        context.__aenter__ = AsyncMock(return_value=session)
+        context.__aexit__ = AsyncMock(return_value=None)
+
+        with (
+            patch("workers.ai_chat_worker.async_session", MagicMock(return_value=context)),
+            patch(
+                "workers.ai_chat_worker.load_project_canvas",
+                AsyncMock(return_value=(SMALL_CANVAS_EXAMPLE["canvas"], "rev-2")),
+            ),
+        ):
+            with self.assertRaises(AIModelError) as raised:
+                await _prepare_design_snapshot(run)
+
+        self.assertEqual(raised.exception.code, "CANVAS_REVISION_CONFLICT")
+        self.assertEqual(session.scalar.await_count, 1)
+
     async def test_provider_busy_retries_same_run_then_succeeds(self):
         run_id = uuid4()
         busy = AIModelError(

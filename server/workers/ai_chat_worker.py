@@ -8,7 +8,13 @@ from sqlalchemy import select, update
 
 from model.ai import AIMessage, AIRun, AIRunKind, AIRunStatus, FileBlob
 from model.db import async_session
+from model.project import Project
 from schema.ai_canvas_schema import AIDesignModelResponse
+from service.canvas_service import (
+    CanvasNotFoundError,
+    CanvasStorageError,
+    load_project_canvas,
+)
 from service.file_blob_service import save_markdown_file
 from service.ai_context_service import prepare_design_context
 from service.ai_model_service import AIModelError, generate_design, generate_spec_markdown
@@ -24,6 +30,10 @@ INTERRUPTED_ERROR_CODE = "GENERATION_INTERRUPTED"
 INTERRUPTED_ERROR_MESSAGE = "AI generation was interrupted."
 WORKER_MAX_TRIES = 5
 RETRYABLE_MODEL_ERROR_CODES = {"MODEL_PROVIDER_BUSY"}
+CANVAS_REVISION_CONFLICT_CODE = "CANVAS_REVISION_CONFLICT"
+CANVAS_REVISION_CONFLICT_MESSAGE = "The saved canvas changed before generation started."
+CANVAS_UNAVAILABLE_CODE = "CANVAS_UNAVAILABLE"
+CANVAS_UNAVAILABLE_MESSAGE = "The saved canvas could not be loaded."
 
 
 def _utc_now() -> datetime:
@@ -94,6 +104,58 @@ async def _set_generation_stage(run_id: UUID) -> bool:
         )
         await session.commit()
         return updated_id is not None
+
+
+async def _prepare_design_snapshot(
+    run: AIRun,
+) -> tuple[bool, dict[str, Any] | None]:
+    """Load and persist the one canvas snapshot used by a design run."""
+    if not getattr(run, "project_id", None):
+        return True, None
+
+    async with async_session() as session:
+        project = await session.scalar(
+            select(Project)
+            .where(Project.id == run.project_id)
+            .with_for_update()
+        )
+        if project is None:
+            raise AIModelError(CANVAS_UNAVAILABLE_CODE, CANVAS_UNAVAILABLE_MESSAGE)
+
+        try:
+            saved_canvas = await load_project_canvas(project)
+        except (CanvasNotFoundError, CanvasStorageError) as exc:
+            raise AIModelError(
+                CANVAS_UNAVAILABLE_CODE,
+                CANVAS_UNAVAILABLE_MESSAGE,
+            ) from exc
+
+        current_canvas = None
+        current_revision = None
+        if saved_canvas is not None:
+            current_canvas, current_revision = saved_canvas
+
+        if current_revision != run.base_canvas_revision:
+            raise AIModelError(
+                CANVAS_REVISION_CONFLICT_CODE,
+                CANVAS_REVISION_CONFLICT_MESSAGE,
+            )
+
+        updated_id = await session.scalar(
+            update(AIRun)
+            .where(
+                AIRun.id == run.id,
+                AIRun.status == AIRunStatus.RUNNING,
+            )
+            .values(
+                base_canvas_revision=current_revision,
+                input_canvas_json=current_canvas,
+            )
+            .returning(AIRun.id)
+        )
+        await session.commit()
+
+    return updated_id is not None, current_canvas
 
 
 async def _transition_cancelled_run(run_id: UUID, *, retry: bool) -> bool:
@@ -305,7 +367,12 @@ async def generate_canvas(ctx: dict[str, Any], run_id: str) -> None:
         return
 
     try:
-        context = prepare_design_context(run)
+        snapshot_ready, current_canvas = await _prepare_design_snapshot(run)
+        if not snapshot_ready:
+            logger.info("AI run stopped before snapshot preparation run_id=%s", run_id)
+            return
+
+        context = prepare_design_context(run, current_canvas)
         if not await _set_generation_stage(parsed_run_id):
             logger.info("AI run stopped before generation run_id=%s", run_id)
             return

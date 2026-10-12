@@ -66,17 +66,19 @@ function WorkflowStatus({ workflow, isWorking, onApply, onCheckStatusAgain }) {
   const isProgressPhase = ["submitting", "polling", "paused"].includes(
     workflow.phase
   )
+  const isSubmissionFailure =
+    workflow.phase === "failed" && !workflow.runId && workflow.statusMessage
   const canReplaceCanvas =
     workflow.phase === "ready" && workflow.requiresReplacement
 
-  if (!isProgressPhase && !canReplaceCanvas) {
+  if (!isProgressPhase && !isSubmissionFailure && !canReplaceCanvas) {
     return null
   }
 
   return (
     <div className="flex justify-start" role="status" aria-live="polite">
       <div className="max-w-[88%] rounded-xl border border-surface-border bg-elevated px-3 py-2 text-sm leading-5 text-ai-text">
-        {isProgressPhase && workflow.statusMessage && (
+        {(isProgressPhase || isSubmissionFailure) && workflow.statusMessage && (
           <div className="flex items-start gap-2">
             {isWorking && (
               <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-brand motion-reduce:animate-none" />

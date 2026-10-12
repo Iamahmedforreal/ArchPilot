@@ -134,11 +134,20 @@ def _application_instructions() -> str:
         "between node bounds, avoid overlaps, use short labels, connect only "
         "existing node IDs, and choose handles that match the visual direction. "
         "All interaction callbacks stay in the frontend and must not appear in "
-        f"JSON. Small valid example:\n{example}"
+        "JSON. When a current canvas is supplied, treat it as the existing "
+        "architecture: return the complete updated canvas, preserve existing "
+        "node IDs for retained components, preserve unrelated nodes and edges, "
+        "preserve positions unless movement is requested, and add new IDs only "
+        "for new components. Remove or replace components only when explicitly "
+        "requested or required by a redesign. Small valid example:\n"
+        f"{example}"
     )
 
 
-def prepare_design_context(run: AIRun) -> dict[str, Any]:
+def prepare_design_context(
+    run: AIRun,
+    current_canvas: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     supported_components = [
         {
             "componentType": component_type,
@@ -149,8 +158,10 @@ def prepare_design_context(run: AIRun) -> dict[str, Any]:
         for component_type, icon_key in SUPPORTED_COMPONENT_ICONS.items()
     ]
 
-    return {
+    context = {
         "instruction": run.instruction,
+        "current_canvas": current_canvas,
+        "canvas_mode": "editing" if current_canvas is not None else "initial",
         "supported_node_types": ["canvasNode"],
         "supported_shapes": [
             {
@@ -170,3 +181,5 @@ def prepare_design_context(run: AIRun) -> dict[str, Any]:
         "response_schema": AIDesignModelResponse.model_json_schema(),
         "application_instructions": _application_instructions(),
     }
+
+    return context

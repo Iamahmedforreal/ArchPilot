@@ -50,8 +50,11 @@ handles, the standard muted stroke, and a closed-arrow marker.
 `server/service/ai_context_service.py` exposes `prepare_design_context(run)`.
 It returns the run instruction, supported node and edge values, component/icon
 meanings, layout rules, the response JSON schema, and a small valid example.
-It deliberately does not load an existing canvas because the current endpoint
-generates a new design from the prompt.
+For an existing project it also receives the exact saved canvas snapshot and
+marks the context as `editing`. The application instructions require a complete
+updated canvas, retained node IDs, preserved unrelated nodes and edges, and
+preserved positions unless the user's instruction requests movement or a
+redesign. An empty project uses `initial` context with no current canvas.
 
 The Gemini model service uses this context and response schema for one
 structured generation call. For a generated outcome, the worker stores only

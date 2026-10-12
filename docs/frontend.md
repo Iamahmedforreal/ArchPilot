@@ -58,6 +58,7 @@ Current client functions:
 | `fetchCanvas` | `GET /api/projects/{project_id}/canvas` |
 | `saveCanvas` | `PUT /api/projects/{project_id}/canvas` |
 | `submitAiDesign` | `POST /api/projects/{project_id}/ai/design` |
+| `fetchAiMessages` | `GET /api/projects/{project_id}/ai/messages` |
 | `submitAiSpec` | `POST /api/projects/{project_id}/ai/spec` |
 | `fetchAiRun` | `GET /api/projects/{project_id}/ai/runs/{run_id}` |
 | `downloadProjectFile` | `GET /api/projects/{project_id}/files/{file_id}/download` |
@@ -146,6 +147,22 @@ revision is preserved, so `useCanvasAutosave` persists the replacement through
 the normal PUT and `409` reconciliation flow. `Design applied` describes the
 local editor action; the navbar continues to show saving, saved, or save-error
 state separately.
+
+The AI sidebar loads the project's persisted conversation when the workspace
+opens and refreshes it after a terminal design run. Accepted user prompts and
+assistant explanations are shown as separate chat bubbles. Generic starter
+prompt chips appear only while the project has no messages; they disappear
+after the first accepted prompt. Message-load requests are cancelled when a
+newer request or submission supersedes them, preventing stale initial data from
+overwriting a newly submitted message.
+
+Before design submission, `useAiDesign` calls `flushCanvasSave()` so pending
+manual edits are persisted through the normal canvas endpoint. A revision
+conflict prevents the AI run from being created. The confirmed Blob revision is
+sent as `expected_canvas_revision`; the worker uses it to select one saved
+canvas snapshot for model context. The generated proposal remains unsaved until
+the user accepts replacement, after which the normal autosave and revision
+conflict flow persists it.
 
 ## AI Spec Flow
 

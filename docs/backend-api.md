@@ -27,6 +27,7 @@ and mutations are scoped to the authenticated Clerk user.
 | `GET` | `/api/projects/{project_id}/canvas` | Load the saved canvas | `200` or `204` |
 | `PUT` | `/api/projects/{project_id}/canvas` | Save the complete canvas | `200` |
 | `POST` | `/api/projects/{project_id}/ai/design` | Create and enqueue an AI design run | `202` |
+| `GET` | `/api/projects/{project_id}/ai/messages` | Read the project's persisted AI conversation | `200` |
 | `POST` | `/api/projects/{project_id}/ai/spec` | Create and enqueue an AI Markdown spec run | `202` |
 | `GET` | `/api/projects/{project_id}/ai/runs/{run_id}` | Read AI run progress or result | `200` |
 | `GET` | `/api/projects/{project_id}/files/{file_id}/download` | Download an owned generated Markdown file | `200` |
@@ -160,13 +161,14 @@ Request body:
 
 ```json
 {
-  "message": "Design a scalable notification service"
+  "message": "Add Redis caching to the API layer",
+  "expected_canvas_revision": "blob-etag-from-get-canvas"
 }
 ```
 
-The request generates a new complete canvas proposal from the prompt. It does
-not include an existing canvas or canvas revision. A successful submission
-returns:
+`expected_canvas_revision` is nullable for a project without a saved canvas.
+For a project with a saved canvas, the frontend flushes pending edits and sends
+the confirmed Blob ETag. A successful submission returns:
 
 ```json
 {
@@ -175,23 +177,61 @@ returns:
 }
 ```
 
-The service verifies project ownership and creates one new `PENDING` `AIRun`
-for each request. The route waits for that database commit, then enqueues
-`generate_canvas` with only the run ID. This endpoint does not perform replay
-deduplication, active-run admission checks, or input canvas revision checks.
+The service verifies project ownership, creates one new `PENDING` `AIRun`, and
+persists the user's instruction as an `AIMessage`. The route waits for that
+database commit, then enqueues `generate_canvas` with only the run ID. This
+endpoint does not perform replay deduplication, active-run admission checks, or
+input canvas revision checks synchronously; the worker performs the revision
+check against the exact saved snapshot before calling Gemini.
 
 `AIRun` does not store an idempotency key or request hash; every accepted
 request is a separate run.
 
-The frontend does not call this endpoint yet. The worker atomically claims the
-run, exposes `preparing` and `generation` stages, calls Gemini, and persists a
-validated proposal or safe failure. Generated proposals remain in `AIRun` and
-are not automatically applied to the project's saved canvas.
+The frontend calls this endpoint from the AI sidebar. The worker atomically
+claims the run, exposes `preparing` and `generation` stages, calls Gemini, and
+persists a validated proposal or safe failure. Generated proposals remain in
+`AIRun` and are not automatically applied to the project's saved canvas.
 
-The future model response contract is defined and validated separately from the
-HTTP submission response. It supports `generated`, `unsupported`, and
+The model response contract is defined and validated separately from the HTTP
+submission response. It supports `generated`, `unsupported`, and
 `needs_clarification` outcomes. See `docs/ai-canvas-output.md` for the exact
 React Flow node and edge format.
+
+At generation start, the worker locks the project row, loads the current saved
+canvas and Blob ETag, and compares that ETag with the expected revision. A
+mismatch or unreadable saved canvas fails the run with a safe error and no
+proposal is generated. The exact snapshot is stored on `AIRun.input_canvas_json`
+and sent to Gemini with instructions to preserve retained IDs, unrelated nodes,
+unrelated edges, and positions unless the instruction requests a change.
+
+### `GET /api/projects/{project_id}/ai/messages`
+
+Returns the persisted conversation for the owned project in chronological
+order. A user message and its eventual assistant response are returned as
+separate entries even though the response is stored on the originating
+`ai_messages` row:
+
+```json
+[
+  {
+    "id": "message-uuid",
+    "role": "USER",
+    "message": "Design a notification service",
+    "created_at": "2026-10-08T12:00:00Z"
+  },
+  {
+    "id": "message-uuid",
+    "role": "ASSISTANT",
+    "message": "Created a notification service architecture.",
+    "created_at": "2026-10-08T12:00:00Z"
+  }
+]
+```
+
+The endpoint is owner-scoped and returns `Cache-Control: no-store`. A user
+message is written when a design run is accepted; the worker fills its
+assistant response when the run succeeds or fails. The conversation history is
+independent of the generated canvas proposal.
 
 ### `GET /api/projects/{project_id}/ai/runs/{run_id}`
 
