@@ -29,6 +29,7 @@ class StrictSchema(BaseModel):
 
 class AIMessageRequest(StrictSchema):
     message: MessageText
+    expected_canvas_revision: str | None = None
 
 
 class AIMessageResponse(StrictSchema):

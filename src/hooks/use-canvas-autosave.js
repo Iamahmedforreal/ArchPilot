@@ -162,7 +162,11 @@ function useCanvasAutosave({
 
       if (hasConflictRef.current) {
         onStatusChange("conflict")
-        return lastConfirmedRevisionRef.current
+        const error = new Error(
+          "Resolve the canvas revision conflict before requesting AI changes."
+        )
+        error.status = 409
+        throw error
       }
 
       if (isSaveInFlightRef.current) {

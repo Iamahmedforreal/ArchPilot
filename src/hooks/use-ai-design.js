@@ -113,12 +113,16 @@ function useAiDesign({ projectId, getToken, canvasControllerRef }) {
       })
 
       try {
+        const savedCanvasRevision =
+          await canvasControllerRef.current?.flushCanvasSave()
+
         const token = await getToken()
         if (!token) {
           throw new Error("Your session is no longer available.")
         }
 
         const run = await submitAiDesign(token, projectId, message, {
+          expectedCanvasRevision: savedCanvasRevision ?? null,
           signal: abortController.signal,
         })
         if (generation !== generationRef.current) {

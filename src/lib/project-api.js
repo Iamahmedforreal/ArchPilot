@@ -116,7 +116,10 @@ async function submitAiDesign(token, projectId, message, options = {}) {
     {
       method: "POST",
       headers: getProjectHeaders(token),
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({
+        message,
+        expected_canvas_revision: options.expectedCanvasRevision ?? null,
+      }),
       signal: options.signal,
     }
   )

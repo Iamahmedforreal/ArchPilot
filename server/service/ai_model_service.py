@@ -26,7 +26,12 @@ Only answer architecture and system-design requests. Return one of these outcome
 - unsupported: the request is not a system-design task.
 - needs_clarification: essential architecture requirements are missing.
 Never include hidden reasoning, credentials, tools, URLs, or frontend callbacks.
-Follow the supplied editor registry, canvas format, and layout rules exactly."""
+Follow the supplied editor registry, canvas format, and layout rules exactly.
+If a current canvas is supplied, edit that architecture rather than starting
+over: return the complete updated canvas, preserve retained node IDs and
+unrelated nodes and edges, preserve positions unless movement is requested,
+and remove or replace components only when the instruction explicitly asks for
+it or requests a redesign."""
 
 SPEC_SYSTEM_INSTRUCTION = """You are ArchPilot's architecture specification writer.
 Write a Markdown architecture specification from the supplied canvas snapshot.

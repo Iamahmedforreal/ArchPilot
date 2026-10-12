@@ -3,7 +3,11 @@ import unittest
 from pydantic import ValidationError
 
 from schema.ai_canvas_schema import AIDesignModelResponse
-from service.ai_context_service import SMALL_CANVAS_EXAMPLE
+from service.ai_context_service import (
+    SMALL_CANVAS_EXAMPLE,
+    prepare_design_context,
+)
+from types import SimpleNamespace
 
 
 class AIArchitectureGenerationTests(unittest.TestCase):
@@ -22,6 +26,17 @@ class AIArchitectureGenerationTests(unittest.TestCase):
                     "outcome": "unsupported",
                 }
             )
+
+    def test_existing_canvas_is_explicit_editing_context(self):
+        current_canvas = SMALL_CANVAS_EXAMPLE["canvas"]
+        context = prepare_design_context(
+            SimpleNamespace(instruction="Add Redis"),
+            current_canvas,
+        )
+
+        self.assertEqual(context["canvas_mode"], "editing")
+        self.assertEqual(context["current_canvas"], current_canvas)
+        self.assertIn("preserve existing node IDs", context["application_instructions"])
 
 
 if __name__ == "__main__":

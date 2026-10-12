@@ -37,10 +37,9 @@ HTTP request creates a new run ID and then enqueues it.
 
 ## Delivery Failure
 
-The database commit happens before Redis enqueueing. Spec submission marks its
-run `FAILED` with a safe queue error if Redis enqueueing fails, so the frontend
-does not present a queued success forever. Design submission still has the
-older minimal behavior where Redis delivery failure can leave a run `PENDING`.
+The database commit happens before Redis enqueueing. If Redis delivery fails,
+design and spec submission mark the committed run `FAILED` with a safe queue
+error, so the frontend does not present a queued success forever.
 
 ## Worker
 
@@ -70,11 +69,15 @@ For each design job, the worker:
 1. Logs the received run ID.
 2. Atomically claims the run only when it is `PENDING`, setting `RUNNING`,
    `preparing`, and `started_at` in a short transaction.
-3. Prepares editor-aware context from the stored instruction without loading a
-   saved canvas or holding a database transaction open.
+3. Locks the project row, loads the current saved canvas and Blob ETag, and
+   compares it with the expected revision stored on the run. A mismatch or
+   unreadable saved canvas fails the run without calling Gemini. The exact
+   snapshot is stored on `AIRun.input_canvas_json` for the run.
 4. Guardedly changes the stage to `generation` while the run is still
    `RUNNING`.
-5. Calls Gemini outside a database transaction and validates the response. A
+5. Builds context containing the instruction, saved canvas when present,
+   supported component metadata, and editing-preservation rules. It then calls
+   Gemini outside the snapshot transaction and validates the response. A
    provider-capacity `503` is retried twice after 2 and 4 seconds, for three
    total attempts on the same run and ARQ job.
 6. Guardedly persists a successful canvas proposal or safe failure while the
@@ -85,6 +88,12 @@ one delivery calls Gemini. Successful generation stores only the canvas object
 in `proposal_json`, stores the explanation, clears prior errors, and marks the
 run `SUCCEEDED`. It does not write to Vercel Blob or change the project's saved
 canvas.
+
+The design submission also creates one `ai_messages` row for the user
+instruction. Completion updates that row with the assistant explanation,
+including safe failure text when generation fails. The project conversation
+endpoint expands the stored row into user and assistant entries for the
+frontend.
 
 `unsupported` and `needs_clarification` outcomes are stored as `FAILED` with
 `OUT_OF_SCOPE` and `NEEDS_CLARIFICATION` respectively. Model and unexpected

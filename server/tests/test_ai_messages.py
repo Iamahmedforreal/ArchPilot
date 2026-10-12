@@ -33,7 +33,25 @@ class AIMessagePersistenceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(message.role, AIMessageRole.USER)
         self.assertEqual(message.message, "Add a cache")
         self.assertIsNone(message.response)
+        self.assertIsNone(run.base_canvas_revision)
         self.assertEqual(result["status"], "PENDING")
+
+    async def test_design_submission_stores_expected_canvas_revision(self):
+        session = MagicMock()
+        session.scalar = AsyncMock(return_value=7)
+        session.flush = AsyncMock()
+        session.commit = AsyncMock()
+
+        await create_ai_design_run(
+            session,
+            "user-1",
+            7,
+            "Add a cache",
+            "rev-4",
+        )
+
+        run = session.add.call_args_list[0].args[0]
+        self.assertEqual(run.base_canvas_revision, "rev-4")
 
     async def test_project_messages_expand_saved_response_as_assistant_message(self):
         created_at = datetime(2026, 10, 8, tzinfo=timezone.utc)

@@ -78,6 +78,7 @@ async def post_project_ai_design(
             owner_id,
             project_id,
             payload.message,
+            payload.expected_canvas_revision,
         )
     except AIProjectNotFoundError as exc:
         raise HTTPException(

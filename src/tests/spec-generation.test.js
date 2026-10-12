@@ -4,6 +4,7 @@ import {
   downloadProjectFile,
   fetchAiMessages,
   fetchAiRun,
+  submitAiDesign,
   submitAiSpec,
 } from "@/lib/project-api"
 
@@ -16,6 +17,29 @@ function response(body) {
 }
 
 describe("spec generation", () => {
+  it("submits the confirmed canvas revision with an AI design request", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response({ run_id: "run-2" }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    await expect(
+      submitAiDesign("token", 7, "Add Redis", {
+        expectedCanvasRevision: "rev-5",
+      })
+    ).resolves.toEqual({ run_id: "run-2" })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/projects/7/ai/design",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          message: "Add Redis",
+          expected_canvas_revision: "rev-5",
+        }),
+      })
+    )
+    vi.unstubAllGlobals()
+  })
+
   it("submits the saved canvas revision and instruction", async () => {
     const fetchMock = vi.fn().mockResolvedValue(response({ run_id: "run-1" }))
     vi.stubGlobal("fetch", fetchMock)

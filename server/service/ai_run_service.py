@@ -79,6 +79,7 @@ async def create_ai_design_run(
     owner_id: str,
     project_id: int,
     message: str,
+    expected_canvas_revision: str | None = None,
 ) -> dict:
     owned_project_id = await session.scalar(
         select(Project.id).where(
@@ -94,6 +95,7 @@ async def create_ai_design_run(
         project_id=owned_project_id,
         kind=AIRunKind.DESIGN,
         instruction=message,
+        base_canvas_revision=expected_canvas_revision,
         status=AIRunStatus.PENDING,
     )
     session.add(run)
