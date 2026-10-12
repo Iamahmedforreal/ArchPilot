@@ -17,6 +17,7 @@ from service.ai_run_service import (
     AISpecCanvasInvalidError,
     AISpecCanvasNotFoundError,
     AISpecCanvasRevisionConflictError,
+    AIDesignCanvasRevisionRequiredError,
     AIProjectNotFoundError,
     AIRunNotFoundError,
     create_ai_design_run,
@@ -84,6 +85,24 @@ async def post_project_ai_design(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found",
+        ) from exc
+    except AIDesignCanvasRevisionRequiredError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Canvas revision is required for an existing design. "
+                "Reload the canvas and retry."
+            ),
+        ) from exc
+    except CanvasNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Saved canvas not found",
+        ) from exc
+    except CanvasStorageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Canvas storage is unavailable",
         ) from exc
 
     try:

@@ -13,6 +13,10 @@ SpecInstructionText = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=1000),
 ]
+CanvasRevisionText = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
+]
 AIRunStatusValue = Literal[
     "PENDING",
     "RUNNING",
@@ -29,7 +33,7 @@ class StrictSchema(BaseModel):
 
 class AIMessageRequest(StrictSchema):
     message: MessageText
-    expected_canvas_revision: str | None = None
+    expected_canvas_revision: CanvasRevisionText | None = None
 
 
 class AIMessageResponse(StrictSchema):

@@ -6,7 +6,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from model.ai import AIMessage, AIMessageRole, AIRun, AIRunKind, AIRunStatus, FileBlob
 from model.project import Project
 from schema.ai_canvas_schema import MAX_AI_EDGES, MAX_AI_NODES
-from service.canvas_service import load_project_canvas
+from service.canvas_service import (
+    CanvasNotFoundError,
+    CanvasStorageError,
+    load_project_canvas,
+    load_project_canvas_revision,
+)
 from service.project_service import get_owned_project
 
 
@@ -27,6 +32,10 @@ class AISpecCanvasRevisionConflictError(Exception):
 
 
 class AISpecCanvasInvalidError(Exception):
+    pass
+
+
+class AIDesignCanvasRevisionRequiredError(Exception):
     pass
 
 
@@ -81,18 +90,23 @@ async def create_ai_design_run(
     message: str,
     expected_canvas_revision: str | None = None,
 ) -> dict:
-    owned_project_id = await session.scalar(
-        select(Project.id).where(
-            Project.id == project_id,
-            Project.owner_id == owner_id,
-        )
-    )
-    if owned_project_id is None:
+    project = await get_owned_project(session, owner_id, project_id)
+    if project is None:
         await session.rollback()
         raise AIProjectNotFoundError
 
+    try:
+        current_revision = await load_project_canvas_revision(project)
+    except (CanvasNotFoundError, CanvasStorageError):
+        await session.rollback()
+        raise
+
+    if current_revision is not None and expected_canvas_revision is None:
+        await session.rollback()
+        raise AIDesignCanvasRevisionRequiredError
+
     run = AIRun(
-        project_id=owned_project_id,
+        project_id=project.id,
         kind=AIRunKind.DESIGN,
         instruction=message,
         base_canvas_revision=expected_canvas_revision,
@@ -102,7 +116,7 @@ async def create_ai_design_run(
     await session.flush()
     session.add(
         AIMessage(
-            project_id=owned_project_id,
+            project_id=project.id,
             run_id=run.id,
             role=AIMessageRole.USER,
             message=message,

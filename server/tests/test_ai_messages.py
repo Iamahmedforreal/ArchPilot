@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from model.ai import AIMessageRole, AIRunKind, AIRunStatus
 from service.ai_run_service import (
+    AIDesignCanvasRevisionRequiredError,
     create_ai_design_run,
     get_project_ai_messages,
 )
@@ -14,7 +15,9 @@ from service.ai_run_service import (
 class AIMessagePersistenceTests(unittest.IsolatedAsyncioTestCase):
     async def test_design_submission_persists_user_message_for_the_run(self):
         session = MagicMock()
-        session.scalar = AsyncMock(return_value=7)
+        session.scalar = AsyncMock(
+            return_value=SimpleNamespace(id=7, canvas_json_path=None)
+        )
         session.flush = AsyncMock()
         session.commit = AsyncMock()
 
@@ -38,7 +41,9 @@ class AIMessagePersistenceTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_design_submission_stores_expected_canvas_revision(self):
         session = MagicMock()
-        session.scalar = AsyncMock(return_value=7)
+        session.scalar = AsyncMock(
+            return_value=SimpleNamespace(id=7, canvas_json_path=None)
+        )
         session.flush = AsyncMock()
         session.commit = AsyncMock()
 
@@ -49,6 +54,51 @@ class AIMessagePersistenceTests(unittest.IsolatedAsyncioTestCase):
             "Add a cache",
             "rev-4",
         )
+
+        run = session.add.call_args_list[0].args[0]
+        self.assertEqual(run.base_canvas_revision, "rev-4")
+
+    async def test_design_submission_requires_revision_for_saved_canvas(self):
+        session = MagicMock()
+        session.scalar = AsyncMock(
+            return_value=SimpleNamespace(id=7, canvas_json_path="blob://canvas")
+        )
+        session.rollback = AsyncMock()
+
+        with patch(
+            "service.ai_run_service.load_project_canvas_revision",
+            AsyncMock(return_value="rev-4"),
+        ):
+            with self.assertRaises(AIDesignCanvasRevisionRequiredError):
+                await create_ai_design_run(
+                    session,
+                    "user-1",
+                    7,
+                    "Add a cache",
+                )
+
+        session.add.assert_not_called()
+        session.rollback.assert_awaited_once_with()
+
+    async def test_design_submission_accepts_revision_for_saved_canvas(self):
+        session = MagicMock()
+        session.scalar = AsyncMock(
+            return_value=SimpleNamespace(id=7, canvas_json_path="blob://canvas")
+        )
+        session.flush = AsyncMock()
+        session.commit = AsyncMock()
+
+        with patch(
+            "service.ai_run_service.load_project_canvas_revision",
+            AsyncMock(return_value="rev-4"),
+        ):
+            await create_ai_design_run(
+                session,
+                "user-1",
+                7,
+                "Add a cache",
+                "rev-4",
+            )
 
         run = session.add.call_args_list[0].args[0]
         self.assertEqual(run.base_canvas_revision, "rev-4")
