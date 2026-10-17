@@ -162,7 +162,8 @@ Request body:
 ```json
 {
   "message": "Add Redis caching to the API layer",
-  "expected_canvas_revision": "blob-etag-from-get-canvas"
+  "expected_canvas_revision": "blob-etag-from-get-canvas",
+  "clarification_answers": null
 }
 ```
 
@@ -179,10 +180,13 @@ the confirmed Blob ETag. A successful submission returns:
 
 The service verifies project ownership, creates one new `PENDING` `AIRun`, and
 persists the user's instruction as an `AIMessage`. The route waits for that
-database commit, then enqueues `generate_canvas` with only the run ID. This
-endpoint does not perform replay deduplication, active-run admission checks, or
-input canvas revision checks synchronously; the worker performs the revision
-check against the exact saved snapshot before calling Gemini.
+database commit, then enqueues `generate_canvas` with only the run ID. A saved
+canvas revision is checked synchronously and again by the worker against the
+exact saved snapshot before Gemini is called. Clarification answers are
+optional and have the shape `{ "question": "...", "answer": "..." }`; the
+frontend sends the original instruction again with those answers.
+Only one clarification round is accepted; if the model still cannot complete
+the request after answers, the run fails safely instead of asking repeatedly.
 
 `AIRun` does not store an idempotency key or request hash; every accepted
 request is a separate run.
@@ -194,8 +198,10 @@ persists a validated proposal or safe failure. Generated proposals remain in
 
 The model response contract is defined and validated separately from the HTTP
 submission response. It supports `generated`, `unsupported`, and
-`needs_clarification` outcomes. See `docs/ai-canvas-output.md` for the exact
-React Flow node and edge format.
+`needs_clarification` outcomes. A clarification result is a successful run
+whose `result` contains the explanation and at most three questions; it does
+not contain a canvas and does not modify the saved canvas. See
+`docs/ai-canvas-output.md` for the exact contract.
 
 At generation start, the worker locks the project row, loads the current saved
 canvas and Blob ETag, and compares that ETag with the expected revision. A
@@ -229,9 +235,11 @@ separate entries even though the response is stored on the originating
 ```
 
 The endpoint is owner-scoped and returns `Cache-Control: no-store`. A user
-message is written when a design run is accepted; the worker fills its
-assistant response when the run succeeds or fails. The conversation history is
-independent of the generated canvas proposal.
+message is written when a design run is accepted; clarification follow-ups
+display their submitted answers while retaining the original run instruction
+for model context. The worker fills its assistant response when the run
+succeeds or fails. The conversation history is independent of the generated
+canvas proposal.
 
 ### `GET /api/projects/{project_id}/ai/runs/{run_id}`
 
@@ -248,8 +256,10 @@ Returns an owned run's stored status and progress:
 }
 ```
 
-`result` contains the stored canvas proposal only for successful `DESIGN` runs.
-For successful `SPEC` runs it contains a generated file reference:
+`result` contains the stored canvas proposal for generated `DESIGN` runs. A
+clarification result instead contains `outcome`, `explanation`, and `questions`
+without a canvas. For successful `SPEC` runs it contains a generated file
+reference:
 
 ```json
 {
@@ -262,10 +272,9 @@ The private blob URL is never returned. `error` contains the safe stored `code`
 and `message` only for `FAILED` runs. Pending, running, and cancelled responses
 expose neither field.
 
-An unsupported request fails with `OUT_OF_SCOPE`; a request needing more detail
-fails with `NEEDS_CLARIFICATION`. Provider and execution failures use stable,
-safe codes and messages. `result_canvas_revision` remains null because the
-worker does not save the generated proposal to Vercel Blob.
+An unsupported request fails with `OUT_OF_SCOPE`. Provider and execution
+failures use stable, safe codes and messages. `result_canvas_revision` remains
+null because the worker does not save the generated proposal to Vercel Blob.
 
 The endpoint returns `404` for inaccessible projects, missing runs, and runs
 belonging to a different project. It is database-read-only and always sends

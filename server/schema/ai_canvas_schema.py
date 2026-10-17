@@ -15,6 +15,9 @@ MAX_AI_NODES = 50
 MAX_AI_EDGES = 100
 MAX_NODE_LABEL_LENGTH = 120
 MAX_EXPLANATION_LENGTH = 1000
+MAX_CLARIFICATION_QUESTIONS = 3
+MAX_CLARIFICATION_OPTIONS = 6
+MAX_CLARIFICATION_TEXT_LENGTH = 500
 
 SUPPORTED_COMPONENT_ICONS = {
     "client": "client",
@@ -66,6 +69,14 @@ Explanation = Annotated[
         strip_whitespace=True,
         min_length=1,
         max_length=MAX_EXPLANATION_LENGTH,
+    ),
+]
+ClarificationText = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=1,
+        max_length=MAX_CLARIFICATION_TEXT_LENGTH,
     ),
 ]
 Coordinate = Annotated[FiniteFloat, Field(ge=-10000, le=10000)]
@@ -220,10 +231,29 @@ class AICanvas(StrictSchema):
         return self
 
 
+class AIClarificationQuestion(StrictSchema):
+    id: NodeId
+    question: ClarificationText
+    options: Annotated[
+        list[ClarificationText],
+        Field(min_length=1, max_length=MAX_CLARIFICATION_OPTIONS),
+    ]
+
+    @model_validator(mode="after")
+    def validate_options(self) -> "AIClarificationQuestion":
+        if len(self.options) != len(set(self.options)):
+            raise ValueError("clarification options must be unique")
+        return self
+
+
 class AIDesignModelResponse(StrictSchema):
     outcome: Literal["generated", "unsupported", "needs_clarification"]
     explanation: Explanation
     canvas: AICanvas | None
+    questions: Annotated[
+        list[AIClarificationQuestion],
+        Field(max_length=MAX_CLARIFICATION_QUESTIONS),
+    ] | None = None
 
     @model_validator(mode="after")
     def validate_outcome_canvas(self) -> "AIDesignModelResponse":
@@ -231,5 +261,17 @@ class AIDesignModelResponse(StrictSchema):
             raise ValueError("canvas is required when outcome is generated")
         if self.outcome != "generated" and self.canvas is not None:
             raise ValueError("canvas must be null unless outcome is generated")
+        if self.outcome == "needs_clarification" and not self.questions:
+            raise ValueError(
+                "questions are required when outcome is needs_clarification"
+            )
+        if self.outcome != "needs_clarification" and self.questions is not None:
+            raise ValueError(
+                "questions are only allowed when outcome is needs_clarification"
+            )
+        if self.questions:
+            question_ids = [question.id for question in self.questions]
+            if len(question_ids) != len(set(question_ids)):
+                raise ValueError("clarification question IDs must be unique")
 
         return self

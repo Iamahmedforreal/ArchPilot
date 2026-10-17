@@ -18,8 +18,9 @@ remain consistent.
   frontend applies a proposal explicitly, then the existing revision-aware
   canvas save flow persists it.
 - AI conversations are persisted in `ai_messages`. The project messages
-  endpoint returns the user instruction and the stored assistant explanation in
-  chronological order.
+  endpoint returns submitted user content and the stored assistant explanation
+  in chronological order; clarification follow-ups display their answers while
+  retaining the original instruction for model context.
 - The AI sidebar restores project conversations, hides starter prompts after
   the first accepted message, and protects message loading from stale-request
   overwrites.
@@ -28,6 +29,10 @@ remain consistent.
 - Unsaved frontend canvas changes are flushed through the normal revision-aware
   save flow before a design request is submitted. A save conflict prevents the
   request from being created.
+- Ambiguous design requests can complete with a validated clarification result
+  containing at most three questions. The sidebar accepts predefined or custom
+  answers and submits the original instruction plus answers through the same
+  design endpoint; the worker reuses the saved canvas and revision checks.
 
 ## Remaining hardening from the iterative-editing specification
 

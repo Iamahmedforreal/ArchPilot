@@ -34,7 +34,37 @@ describe("spec generation", () => {
         body: JSON.stringify({
           message: "Add Redis",
           expected_canvas_revision: "rev-5",
+          clarification_answers: null,
         }),
+      })
+    )
+    vi.unstubAllGlobals()
+  })
+
+  it("submits the original instruction and clarification answers", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(response({ run_id: "run-3" }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    await submitAiDesign("token", 7, "Make it scalable", {
+      expectedCanvasRevision: "rev-5",
+      clarificationAnswers: [
+        {
+          question: "What scale are you targeting?",
+          answer: "Thousands of concurrent users",
+        },
+      ],
+    })
+
+    expect(fetchMock.mock.calls[0][1].body).toBe(
+      JSON.stringify({
+        message: "Make it scalable",
+        expected_canvas_revision: "rev-5",
+        clarification_answers: [
+          {
+            question: "What scale are you targeting?",
+            answer: "Thousands of concurrent users",
+          },
+        ],
       })
     )
     vi.unstubAllGlobals()

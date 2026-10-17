@@ -112,6 +112,10 @@ class AIRun(Base):
         JSONB,
         nullable=True,
     )
+    clarification_answers: Mapped[list[dict[str, str]] | None] = mapped_column(
+        JSONB,
+        nullable=True,
+    )
     file_blob_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("files_blob.id", ondelete="SET NULL"),
         nullable=True,

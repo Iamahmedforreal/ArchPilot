@@ -27,6 +27,54 @@ class AIArchitectureGenerationTests(unittest.TestCase):
                 }
             )
 
+        with self.assertRaises(ValidationError):
+            AIDesignModelResponse.model_validate(
+                {
+                    "outcome": "needs_clarification",
+                    "explanation": "More information is required.",
+                    "canvas": None,
+                    "questions": [
+                        {
+                            "id": "q1",
+                            "question": "First",
+                            "options": ["One"],
+                        },
+                        {
+                            "id": "q1",
+                            "question": "Second",
+                            "options": ["Two"],
+                        },
+                    ],
+                }
+            )
+
+    def test_clarification_requires_questions_and_excludes_canvas(self):
+        response = AIDesignModelResponse.model_validate(
+            {
+                "outcome": "needs_clarification",
+                "explanation": "I need more information about the target scale.",
+                "canvas": None,
+                "questions": [
+                    {
+                        "id": "q1",
+                        "question": "What scale are you targeting?",
+                        "options": ["Small", "Production"],
+                    }
+                ],
+            }
+        )
+
+        self.assertEqual(response.questions[0].id, "q1")
+
+        with self.assertRaises(ValidationError):
+            AIDesignModelResponse.model_validate(
+                {
+                    "outcome": "needs_clarification",
+                    "explanation": "More information is required.",
+                    "canvas": None,
+                }
+            )
+
     def test_existing_canvas_is_explicit_editing_context(self):
         current_canvas = SMALL_CANVAS_EXAMPLE["canvas"]
         context = prepare_design_context(

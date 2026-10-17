@@ -7,6 +7,8 @@ from pydantic import ValidationError
 from schema.ai_canvas_schema import AICanvasEdge
 from service.ai_model_service import (
     AIModelError,
+    SYSTEM_INSTRUCTION,
+    _build_design_prompt,
     _build_response_json_schema,
     _validate_response,
 )
@@ -32,6 +34,26 @@ VALID_EDGE = {
 
 
 class GeminiSchemaCompatibilityTests(unittest.TestCase):
+    def test_system_instruction_requires_clarification_for_vague_goals(self) -> None:
+        self.assertIn('"make my architecture', SYSTEM_INSTRUCTION)
+        self.assertIn("do not invent requirements", SYSTEM_INSTRUCTION)
+
+    def test_clarification_answers_are_included_with_original_instruction(self) -> None:
+        prompt = _build_design_prompt(
+            {
+                "instruction": "Make my architecture scalable.",
+                "clarification_answers": [
+                    {
+                        "question": "What scale are you targeting?",
+                        "answer": "Thousands of concurrent users",
+                    }
+                ],
+            }
+        )
+
+        self.assertIn("Make my architecture scalable.", prompt)
+        self.assertIn("Thousands of concurrent users", prompt)
+
     def test_response_json_schema_uses_supported_keywords(self) -> None:
         schema = _build_response_json_schema()
 
@@ -39,6 +61,7 @@ class GeminiSchemaCompatibilityTests(unittest.TestCase):
             schema["properties"]["outcome"]["enum"],
             ["generated", "unsupported", "needs_clarification"],
         )
+        self.assertIn("questions", schema["properties"])
         canvas_schema = schema["properties"]["canvas"]["anyOf"][0]
         self.assertEqual(canvas_schema["required"], ["nodes", "edges"])
         node_schema = canvas_schema["properties"]["nodes"]["items"]
