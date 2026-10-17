@@ -10,6 +10,7 @@ from service.ai_model_service import (
     SYSTEM_INSTRUCTION,
     _build_design_prompt,
     _build_response_json_schema,
+    _build_system_instruction,
     _validate_response,
 )
 
@@ -53,6 +54,19 @@ class GeminiSchemaCompatibilityTests(unittest.TestCase):
 
         self.assertIn("Make my architecture scalable.", prompt)
         self.assertIn("Thousands of concurrent users", prompt)
+
+    def test_clarification_answers_are_not_in_system_instruction(self) -> None:
+        system_instruction = _build_system_instruction(
+            {
+                "instruction": "Make it scalable",
+                "clarification_answers": [
+                    {"question": "Target?", "answer": "User-provided detail"}
+                ],
+                "response_schema": {},
+            }
+        )
+
+        self.assertNotIn("User-provided detail", system_instruction)
 
     def test_response_json_schema_uses_supported_keywords(self) -> None:
         schema = _build_response_json_schema()

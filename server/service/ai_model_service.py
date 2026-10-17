@@ -115,7 +115,7 @@ def _build_system_instruction(context: dict[str, Any]) -> str:
     application_context = {
         key: value
         for key, value in context.items()
-        if key not in {"instruction", "response_schema"}
+        if key not in {"instruction", "response_schema", "clarification_answers"}
     }
     return (
         f"{SYSTEM_INSTRUCTION}\n\nApplication context:\n"
