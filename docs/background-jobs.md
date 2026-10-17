@@ -89,16 +89,21 @@ in `proposal_json`, stores the explanation, clears prior errors, and marks the
 run `SUCCEEDED`. It does not write to Vercel Blob or change the project's saved
 canvas.
 
-The design submission also creates one `ai_messages` row for the user
-instruction. Completion updates that row with the assistant explanation,
-including safe failure text when generation fails. The project conversation
-endpoint expands the stored row into user and assistant entries for the
-frontend.
+The design submission also creates one `ai_messages` row for the submitted
+user content. For a clarification follow-up, that row displays the submitted
+answers while the run still keeps the original instruction for the model.
+Completion updates the row with the assistant explanation, including safe
+failure text when generation fails. The project conversation endpoint expands
+the stored row into user and assistant entries for the frontend.
 
-`unsupported` and `needs_clarification` outcomes are stored as `FAILED` with
-`OUT_OF_SCOPE` and `NEEDS_CLARIFICATION` respectively. Model and unexpected
-execution failures store only safe codes and messages. Task cancellation is
-handled with a shielded database transition and then re-raised to ARQ.
+`unsupported` outcomes are stored as `FAILED` with `OUT_OF_SCOPE`. A
+`needs_clarification` outcome is stored as a successful run whose proposal
+result contains the explanation and validated questions; it does not modify
+the saved canvas. A run that already contains clarification answers cannot ask
+another clarification round and fails safely if the model still cannot
+complete the request. Model and unexpected execution failures store only safe
+codes and messages. Task cancellation is handled with a shielded database
+transition and then re-raised to ARQ.
 
 For cancellation before ARQ's final allowed try, the worker conditionally
 changes the run from `RUNNING` back to `PENDING`, clears transient progress, and

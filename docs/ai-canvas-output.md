@@ -9,7 +9,12 @@ Every model response has an `outcome`, an `explanation`, and a `canvas`:
 
 - `generated`: `canvas` is required.
 - `unsupported`: `canvas` must be `null`.
-- `needs_clarification`: `canvas` must be `null`.
+- `needs_clarification`: `canvas` must be `null` and `questions` is required.
+
+Clarification responses contain at most three questions. Each question has a
+unique `id`, concise `question` text, and one to six predefined `options`; the
+frontend also permits a custom answer. Generated and unsupported responses
+must not include `questions`.
 
 ```json
 {
@@ -58,5 +63,7 @@ redesign. An empty project uses `initial` context with no current canvas.
 
 The Gemini model service uses this context and response schema for one
 structured generation call. For a generated outcome, the worker stores only
-the serialized `canvas` object in `AIRun.proposal_json`; it stores non-generated
-outcomes as safe failures.
+the serialized `canvas` object in `AIRun.proposal_json`. A clarification
+outcome is stored as a successful terminal result containing `outcome`,
+`explanation`, and `questions`; it does not change the saved canvas. Unsupported
+outcomes remain safe failures.

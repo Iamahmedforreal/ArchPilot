@@ -122,8 +122,16 @@ def _application_instructions() -> str:
         "Return only JSON matching the supplied response schema. Use outcome "
         "'generated' with a complete canvas, 'unsupported' when the request is "
         "not a system-design task, or 'needs_clarification' when essential "
-        "requirements are missing. Non-generated outcomes must use a null "
-        "canvas. Nodes use the fixed architecture-card rendering selected by "
+        "requirements are missing. Broad goals with no target or scope, such as "
+        "'make my architecture scalable', 'improve the design', or 'make it "
+        "robust', require clarification; do not invent requirements. Generate "
+        "directly for concrete requests such as adding, removing, connecting, "
+        "or moving a named component. Ask at most three concise questions and "
+        "include useful predefined options. Do not ask about details already "
+        "shown in the current canvas or minor details that can use a reasonable "
+        "default. Non-generated outcomes must use a null canvas. Generated "
+        "outcomes must not include questions. Nodes use the fixed "
+        "architecture-card rendering selected by "
         "type 'canvasNode'; do not add a shape field. Use only listed component "
         "and icon registry keys, and use the iconKey paired with each supplied "
         "componentType. Use the default color pair unless another supported "
@@ -160,6 +168,7 @@ def prepare_design_context(
 
     context = {
         "instruction": run.instruction,
+        "clarification_answers": getattr(run, "clarification_answers", None),
         "current_canvas": current_canvas,
         "canvas_mode": "editing" if current_canvas is not None else "initial",
         "supported_node_types": ["canvasNode"],

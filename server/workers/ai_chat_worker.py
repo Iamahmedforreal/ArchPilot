@@ -202,9 +202,11 @@ async def _persist_success(
     run_id: UUID,
     response: AIDesignModelResponse,
 ) -> bool:
-    canvas = response.canvas
-    if canvas is None:
-        raise ValueError("Generated response is missing its canvas")
+    result = (
+        response.canvas.model_dump(mode="json")
+        if response.outcome == "generated" and response.canvas is not None
+        else response.model_dump(mode="json", exclude={"canvas"})
+    )
 
     async with async_session() as session:
         updated_id = await session.scalar(
@@ -214,7 +216,7 @@ async def _persist_success(
                 AIRun.status == AIRunStatus.RUNNING,
             )
             .values(
-                proposal_json=canvas.model_dump(mode="json"),
+                proposal_json=result,
                 explanation=response.explanation,
                 status=AIRunStatus.SUCCEEDED,
                 stage=None,
@@ -291,18 +293,25 @@ async def _persist_failure_or_raise(
 async def _persist_response(
     run_id: UUID,
     response: AIDesignModelResponse,
+    *,
+    clarification_round: bool = False,
 ) -> bool:
     if response.outcome == "generated":
         return await _persist_success(run_id, response)
 
-    error_code = (
-        "OUT_OF_SCOPE"
-        if response.outcome == "unsupported"
-        else "NEEDS_CLARIFICATION"
-    )
+    if response.outcome == "needs_clarification":
+        if clarification_round:
+            return await _persist_failure(
+                run_id,
+                "OUT_OF_SCOPE",
+                "The request could not be completed with the supplied details.",
+                explanation=response.explanation,
+            )
+        return await _persist_success(run_id, response)
+
     return await _persist_failure(
         run_id,
-        error_code,
+        "OUT_OF_SCOPE",
         response.explanation,
         explanation=response.explanation,
     )
@@ -421,7 +430,11 @@ async def generate_canvas(ctx: dict[str, Any], run_id: str) -> None:
         return
 
     try:
-        persisted = await _persist_response(parsed_run_id, response)
+        persisted = await _persist_response(
+            parsed_run_id,
+            response,
+            clarification_round=bool(getattr(run, "clarification_answers", None)),
+        )
     except Exception:
         logger.exception("Unable to persist AI completion run_id=%s", run_id)
         raise

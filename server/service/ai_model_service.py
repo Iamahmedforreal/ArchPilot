@@ -31,7 +31,17 @@ If a current canvas is supplied, edit that architecture rather than starting
 over: return the complete updated canvas, preserve retained node IDs and
 unrelated nodes and edges, preserve positions unless movement is requested,
 and remove or replace components only when the instruction explicitly asks for
-it or requests a redesign."""
+it or requests a redesign.
+Ask clarification questions only when missing information materially changes
+the design. Broad goals with no target or scope, such as "make my architecture
+scalable", "improve the design", or "make it robust", require clarification;
+do not invent requirements to turn them into a complete design. Generate
+directly for concrete requests such as adding, removing, connecting, or moving
+a named component. Ask no more than three concise questions with useful
+options, and allow a custom answer. After clarification answers are supplied,
+use them and make reasonable defaults for remaining minor details; do not ask a
+second clarification round. For example, without answers, "make my
+architecture scalable" must return needs_clarification rather than a canvas."""
 
 SPEC_SYSTEM_INSTRUCTION = """You are ArchPilot's architecture specification writer.
 Write a Markdown architecture specification from the supplied canvas snapshot.
@@ -105,7 +115,7 @@ def _build_system_instruction(context: dict[str, Any]) -> str:
     application_context = {
         key: value
         for key, value in context.items()
-        if key not in {"instruction", "response_schema"}
+        if key not in {"instruction", "response_schema", "clarification_answers"}
     }
     return (
         f"{SYSTEM_INSTRUCTION}\n\nApplication context:\n"
@@ -186,6 +196,19 @@ def _build_spec_prompt(
     )
 
 
+def _build_design_prompt(context: dict[str, Any]) -> str:
+    instruction = context["instruction"]
+    answers = context.get("clarification_answers") or []
+    if not answers:
+        return instruction
+
+    return (
+        f"Original instruction:\n{instruction}\n\n"
+        "Clarification answers (use these to complete the original request):\n"
+        f"{json.dumps(answers, separators=(',', ':'))}"
+    )
+
+
 def _validate_response(response: types.GenerateContentResponse) -> AIDesignModelResponse:
     if response.prompt_feedback and response.prompt_feedback.block_reason:
         raise AIModelError("MODEL_SAFETY_BLOCKED", "The request was blocked.")
@@ -236,7 +259,7 @@ async def generate_design(context: dict[str, Any]) -> AIDesignModelResponse:
     try:
         response = await client.aio.models.generate_content(
             model=model,
-            contents=context["instruction"],
+            contents=_build_design_prompt(context),
             config=types.GenerateContentConfig(
                 system_instruction=_build_system_instruction(context),
                 response_mime_type="application/json",

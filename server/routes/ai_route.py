@@ -17,6 +17,7 @@ from service.ai_run_service import (
     AISpecCanvasInvalidError,
     AISpecCanvasNotFoundError,
     AISpecCanvasRevisionConflictError,
+    AIDesignCanvasRevisionConflictError,
     AIDesignCanvasRevisionRequiredError,
     AIProjectNotFoundError,
     AIRunNotFoundError,
@@ -80,6 +81,9 @@ async def post_project_ai_design(
             project_id,
             payload.message,
             payload.expected_canvas_revision,
+            [answer.model_dump(mode="json") for answer in payload.clarification_answers]
+            if payload.clarification_answers
+            else None,
         )
     except AIProjectNotFoundError as exc:
         raise HTTPException(
@@ -93,6 +97,11 @@ async def post_project_ai_design(
                 "Canvas revision is required for an existing design. "
                 "Reload the canvas and retry."
             ),
+        ) from exc
+    except AIDesignCanvasRevisionConflictError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Canvas revision has changed",
         ) from exc
     except CanvasNotFoundError as exc:
         raise HTTPException(

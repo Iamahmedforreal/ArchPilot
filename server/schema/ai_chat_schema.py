@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 
 MessageText = Annotated[
@@ -16,6 +16,10 @@ SpecInstructionText = Annotated[
 CanvasRevisionText = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=255),
+]
+ClarificationAnswerText = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=500),
 ]
 AIRunStatusValue = Literal[
     "PENDING",
@@ -31,9 +35,19 @@ class StrictSchema(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class AIClarificationAnswer(StrictSchema):
+    question: ClarificationAnswerText
+    answer: ClarificationAnswerText
+
+
 class AIMessageRequest(StrictSchema):
     message: MessageText
     expected_canvas_revision: CanvasRevisionText | None = None
+    clarification_answers: list[AIClarificationAnswer] | None = Field(
+        default=None,
+        min_length=1,
+        max_length=3,
+    )
 
 
 class AIMessageResponse(StrictSchema):

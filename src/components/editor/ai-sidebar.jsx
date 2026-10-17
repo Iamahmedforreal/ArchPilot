@@ -62,7 +62,96 @@ function ChatBubble({ message }) {
   )
 }
 
-function WorkflowStatus({ workflow, isWorking, onApply, onCheckStatusAgain }) {
+function ClarificationForm({
+  clarification,
+  answers,
+  isWorking,
+  onAnswerChange,
+  onContinue,
+}) {
+  const questions = clarification?.questions || []
+
+  const canContinue =
+    questions.length > 0 &&
+    questions.every((question) => answers[question.id]?.trim())
+
+  if (!questions.length) {
+    return null
+  }
+
+  return (
+    <div className="mt-3 space-y-3 border-t border-surface-border pt-3">
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-copy-muted">
+        Clarify the design
+      </p>
+      {questions.map((question) => (
+        <fieldset key={question.id} className="space-y-2">
+          <legend className="text-sm leading-5 text-copy-primary">
+            {question.question}
+          </legend>
+          <div className="space-y-1.5">
+            {question.options.map((option) => (
+              <label
+                key={option}
+                className="flex cursor-pointer items-start gap-2 rounded-lg border border-surface-border bg-base/50 px-2.5 py-2 text-xs text-copy-secondary hover:border-brand/50"
+              >
+                <input
+                  type="radio"
+                  name={`clarification-${question.id}`}
+                  value={option}
+                  checked={answers[question.id] === option}
+                  onChange={() => onAnswerChange(question.id, option)}
+                  className="mt-0.5 accent-brand"
+                />
+                <span>{option}</span>
+              </label>
+            ))}
+          </div>
+          <input
+            type="text"
+            value={
+              question.options.includes(answers[question.id])
+                ? ""
+                : answers[question.id] || ""
+            }
+            onChange={(event) =>
+              onAnswerChange(question.id, event.target.value)
+            }
+            placeholder="Or enter a custom answer"
+            aria-label={`Custom answer for ${question.question}`}
+            className="w-full rounded-lg border border-surface-border bg-base px-2.5 py-2 text-xs text-copy-primary outline-none placeholder:text-copy-muted focus:border-brand/60"
+          />
+        </fieldset>
+      ))}
+      <Button
+        type="button"
+        size="sm"
+        disabled={!canContinue || isWorking}
+        onClick={() =>
+          onContinue(
+            questions.map((question) => ({
+              question: question.question,
+              answer: answers[question.id],
+            }))
+          )
+        }
+        className="h-9 w-full rounded-lg bg-brand text-primary-foreground hover:bg-brand-hover"
+      >
+        Continue
+      </Button>
+    </div>
+  )
+}
+
+function WorkflowStatus({
+  workflow,
+  clarificationAnswers,
+  isWorking,
+  onApply,
+  onCheckStatusAgain,
+  onClarificationAnswerChange,
+  onContinueClarification,
+}) {
   const isProgressPhase = ["submitting", "polling", "paused"].includes(
     workflow.phase
   )
@@ -70,15 +159,22 @@ function WorkflowStatus({ workflow, isWorking, onApply, onCheckStatusAgain }) {
     workflow.phase === "failed" && !workflow.runId && workflow.statusMessage
   const canReplaceCanvas =
     workflow.phase === "ready" && workflow.requiresReplacement
+  const needsClarification = workflow.phase === "clarification"
 
-  if (!isProgressPhase && !isSubmissionFailure && !canReplaceCanvas) {
+  if (
+    !isProgressPhase &&
+    !isSubmissionFailure &&
+    !canReplaceCanvas &&
+    !needsClarification
+  ) {
     return null
   }
 
   return (
     <div className="flex justify-start" role="status" aria-live="polite">
       <div className="max-w-[88%] rounded-xl border border-surface-border bg-elevated px-3 py-2 text-sm leading-5 text-ai-text">
-        {(isProgressPhase || isSubmissionFailure) && workflow.statusMessage && (
+        {(isProgressPhase || isSubmissionFailure || needsClarification) &&
+          workflow.statusMessage && (
           <div className="flex items-start gap-2">
             {isWorking && (
               <LoaderCircle className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-brand motion-reduce:animate-none" />
@@ -111,6 +207,16 @@ function WorkflowStatus({ workflow, isWorking, onApply, onCheckStatusAgain }) {
             Check status again
           </Button>
         )}
+        {needsClarification && (
+          <ClarificationForm
+            key={workflow.runId}
+            clarification={workflow.clarification}
+            answers={clarificationAnswers}
+            isWorking={isWorking}
+            onAnswerChange={onClarificationAnswerChange}
+            onContinue={onContinueClarification}
+          />
+        )}
       </div>
     </div>
   )
@@ -118,15 +224,19 @@ function WorkflowStatus({ workflow, isWorking, onApply, onCheckStatusAgain }) {
 
 function AiArchitectTab({
   draft,
+  clarificationAnswers,
   isWorking,
   messages,
   workflow,
   onApplyProposal,
   onCheckStatusAgain,
   onDraftChange,
+  onClarificationAnswerChange,
+  onSubmitClarification,
   onSubmitMessage,
 }) {
   const textareaRef = useRef(null)
+  const messagesScrollRef = useRef(null)
   const scrollbarHideTimeoutRef = useRef(null)
   const isMessagesPointerInsideRef = useRef(false)
   const isMessagesFocusInsideRef = useRef(false)
@@ -151,6 +261,13 @@ function AiArchitectTab({
     textarea.style.height = `${Math.min(textarea.scrollHeight, MAX_PROMPT_HEIGHT)}px`
   }, [draft])
 
+  useEffect(() => {
+    const messagesScroll = messagesScrollRef.current
+    if (messagesScroll) {
+      messagesScroll.scrollTop = messagesScroll.scrollHeight
+    }
+  }, [messages.length, workflow.phase, workflow.statusMessage])
+
   function handleKeyDown(event) {
     if (
       event.key !== "Enter" ||
@@ -164,7 +281,8 @@ function AiArchitectTab({
     onSubmitMessage()
   }
 
-  const canSubmit = draft.trim().length > 0 && !isWorking
+  const isClarification = workflow.phase === "clarification"
+  const canSubmit = draft.trim().length > 0 && !isWorking && !isClarification
 
   function showMessagesScrollbar() {
     setIsMessagesScrollActive(true)
@@ -225,6 +343,7 @@ function AiArchitectTab({
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
       <div
+        ref={messagesScrollRef}
         className={cn(
           "ai-chat-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1",
           isMessagesScrollActive && "ai-chat-scroll-active"
@@ -264,18 +383,24 @@ function AiArchitectTab({
             ))}
             <WorkflowStatus
               workflow={workflow}
+              clarificationAnswers={clarificationAnswers}
               isWorking={isWorking}
               onApply={onApplyProposal}
               onCheckStatusAgain={onCheckStatusAgain}
+              onClarificationAnswerChange={onClarificationAnswerChange}
+              onContinueClarification={onSubmitClarification}
             />
           </div>
         )}
         {messages.length === 0 && (
           <WorkflowStatus
             workflow={workflow}
+            clarificationAnswers={clarificationAnswers}
             isWorking={isWorking}
             onApply={onApplyProposal}
             onCheckStatusAgain={onCheckStatusAgain}
+            onClarificationAnswerChange={onClarificationAnswerChange}
+            onContinueClarification={onSubmitClarification}
           />
         )}
       </div>
@@ -288,6 +413,7 @@ function AiArchitectTab({
             placeholder="Ask for follow-up changes..."
             onChange={(event) => onDraftChange(event.target.value)}
             onKeyDown={handleKeyDown}
+            disabled={isClarification}
             className="ai-composer-scroll max-h-48 min-h-14 resize-none overflow-y-auto rounded-2xl border border-surface-border bg-elevated px-3.5 py-3.5 pr-14 text-sm leading-5 text-copy-primary shadow-inner shadow-black/20 placeholder:text-copy-muted focus-visible:border-brand/60 focus-visible:ring-1 focus-visible:ring-brand/30"
             rows={1}
           />
@@ -389,6 +515,7 @@ function AiSidebar({
 }) {
   const [activeTab, setActiveTab] = useState("architect")
   const [draft, setDraft] = useState("")
+  const [clarificationAnswers, setClarificationAnswers] = useState({})
   const [messages, setMessages] = useState([])
   const [specWorkflow, setSpecWorkflow] = useState({
     phase: "idle",
@@ -403,6 +530,10 @@ function AiSidebar({
   const messageLoadAbortRef = useRef(null)
   const closeAssistant = useEffectEvent(onClose)
   const [isMobileDialog, setIsMobileDialog] = useState(getIsMobileDialogViewport)
+
+  useEffect(() => {
+    setClarificationAnswers({})
+  }, [projectId])
 
   const isWorking =
     workflow.phase === "submitting" || workflow.phase === "polling"
@@ -721,42 +852,75 @@ function AiSidebar({
     }
   }, [isOpen, isMobileDialog])
 
-  async function submitMessage(nextContent = draft) {
+  async function submitMessage(nextContent = draft, options = {}) {
     const content = nextContent.trim()
 
     if (!content || isWorking) {
+      return false
+    }
+
+    messageLoadAbortRef.current?.abort()
+    messageLoadAbortRef.current = null
+    const messageId = crypto.randomUUID()
+    const showUserMessage = options.showUserMessage !== false
+    const shouldRestoreDraft = showUserMessage && nextContent === draft
+
+    if (showUserMessage) {
+      setMessages((currentMessages) => [
+        ...currentMessages,
+        { id: messageId, role: "user", content },
+      ])
+    }
+    setDraft("")
+
+    const submitted = await onSubmit(content, options)
+
+    if (!submitted) {
+      if (shouldRestoreDraft) {
+        setDraft((currentDraft) => currentDraft || draft)
+      }
+      if (showUserMessage) {
+        setMessages((currentMessages) =>
+          currentMessages.filter((message) => message.id !== messageId)
+        )
+      }
+      return false
+    }
+
+    const abortController = new AbortController()
+    messageLoadAbortRef.current = abortController
+    loadProjectMessages(abortController.signal)
+      .then((savedMessages) => {
+        if (messageLoadAbortRef.current === abortController) {
+          setMessages(savedMessages)
+        }
+      })
+      .catch((error) => {
+        if (error.name !== "AbortError") {
+          console.error(error)
+        }
+      })
+      .finally(() => {
+        if (messageLoadAbortRef.current === abortController) {
+          messageLoadAbortRef.current = null
+        }
+      })
+    return true
+  }
+
+  async function submitClarification(answers) {
+    const instruction = workflow.clarification?.instruction
+    if (!instruction) {
       return
     }
 
-    const submitted = await onSubmit(content)
+    const submitted = await submitMessage(instruction, {
+      clarificationAnswers: answers,
+      showUserMessage: false,
+    })
 
     if (submitted) {
-      messageLoadAbortRef.current?.abort()
-      messageLoadAbortRef.current = null
-      setMessages((currentMessages) => [
-        ...currentMessages,
-        { id: crypto.randomUUID(), role: "user", content },
-      ])
-      setDraft("")
-
-      const abortController = new AbortController()
-      messageLoadAbortRef.current = abortController
-      loadProjectMessages(abortController.signal)
-        .then((savedMessages) => {
-          if (messageLoadAbortRef.current === abortController) {
-            setMessages(savedMessages)
-          }
-        })
-        .catch((error) => {
-          if (error.name !== "AbortError") {
-            console.error(error)
-          }
-        })
-        .finally(() => {
-          if (messageLoadAbortRef.current === abortController) {
-            messageLoadAbortRef.current = null
-          }
-        })
+      setClarificationAnswers({})
     }
   }
 
@@ -920,12 +1084,20 @@ function AiSidebar({
         {activeTab === "architect" ? (
           <AiArchitectTab
             draft={draft}
+            clarificationAnswers={clarificationAnswers}
             isWorking={isWorking}
             messages={messages}
             workflow={workflow}
             onApplyProposal={onApplyProposal}
             onCheckStatusAgain={onCheckStatusAgain}
             onDraftChange={setDraft}
+            onClarificationAnswerChange={(questionId, answer) =>
+              setClarificationAnswers((current) => ({
+                ...current,
+                [questionId]: answer,
+              }))
+            }
+            onSubmitClarification={submitClarification}
             onSubmitMessage={submitMessage}
           />
         ) : (

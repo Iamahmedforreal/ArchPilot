@@ -14,6 +14,7 @@ const initialWorkflow = {
   statusMessage: null,
   proposal: null,
   requiresReplacement: false,
+  clarification: null,
 }
 
 function getRunStatusMessage(run) {
@@ -71,7 +72,7 @@ function useAiDesign({ projectId, getToken, canvasControllerRef }) {
     visibleWorkflow.phase === "submitting" || visibleWorkflow.phase === "polling"
 
   const submit = useCallback(
-    async (prompt) => {
+    async (prompt, options = {}) => {
       const message = prompt.trim()
       const canvasMeta = canvasControllerRef.current?.getCanvasMeta()
 
@@ -110,6 +111,9 @@ function useAiDesign({ projectId, getToken, canvasControllerRef }) {
         projectId,
         phase: "submitting",
         statusMessage: "Submitting request...",
+        clarification: options.clarificationAnswers
+          ? visibleWorkflow.clarification
+          : null,
       })
 
       try {
@@ -123,6 +127,7 @@ function useAiDesign({ projectId, getToken, canvasControllerRef }) {
 
         const run = await submitAiDesign(token, projectId, message, {
           expectedCanvasRevision: savedCanvasRevision ?? null,
+          clarificationAnswers: options.clarificationAnswers ?? null,
           signal: abortController.signal,
         })
         if (generation !== generationRef.current) {
@@ -137,6 +142,7 @@ function useAiDesign({ projectId, getToken, canvasControllerRef }) {
           startedAt: Date.now(),
           submittedCanvasGeneration: canvasMeta.generation,
           submittedCanvasWasEmpty: canvasMeta.isEmpty,
+          instruction: message,
         }
         setWorkflow({
           ...initialWorkflow,
@@ -157,17 +163,33 @@ function useAiDesign({ projectId, getToken, canvasControllerRef }) {
         }
 
         activeRequestRef.current = false
-        setWorkflow({
-          ...initialWorkflow,
-          projectId,
-          phase: "failed",
-          statusMessage:
-            error.detail || "The design request could not be submitted. Try again.",
+        setWorkflow((current) => {
+          if (
+            options.clarificationAnswers &&
+            current.phase === "submitting" &&
+            current.clarification
+          ) {
+            return {
+              ...current,
+              phase: "clarification",
+              statusMessage:
+                error.detail ||
+                "The clarification could not be submitted. Try again.",
+            }
+          }
+
+          return {
+            ...initialWorkflow,
+            projectId,
+            phase: "failed",
+            statusMessage:
+              error.detail || "The design request could not be submitted. Try again.",
+          }
         })
         return false
       }
     },
-    [canvasControllerRef, getToken, projectId]
+    [canvasControllerRef, getToken, projectId, visibleWorkflow.clarification]
   )
 
   useEffect(() => {
@@ -228,6 +250,28 @@ function useAiDesign({ projectId, getToken, canvasControllerRef }) {
           }
 
           if (run.status === "SUCCEEDED") {
+            if (
+              run.result?.outcome === "needs_clarification" &&
+              Array.isArray(run.result.questions) &&
+              run.result.questions.length > 0
+            ) {
+              setWorkflow({
+                ...initialWorkflow,
+                projectId: pollSession.projectId,
+                phase: "clarification",
+                runId: run.run_id,
+                statusMessage:
+                  run.result.explanation || "A few details will help refine this design.",
+                clarification: {
+                  instruction: pollSession.instruction,
+                  questions: run.result.questions,
+                },
+              })
+              activeRequestRef.current = false
+              setPollSession(null)
+              return
+            }
+
             try {
               const proposal = validateAiCanvasProposal(run.result)
               const currentCanvas = canvasControllerRef.current?.getCanvasMeta()

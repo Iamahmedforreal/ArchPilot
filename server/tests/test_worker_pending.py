@@ -279,10 +279,21 @@ class WorkerPersistenceTests(unittest.IsolatedAsyncioTestCase):
         for outcome, expected_code in cases:
             with self.subTest(outcome=outcome):
                 run_id = uuid4()
+                response_changes = {
+                    "outcome": outcome,
+                    "explanation": "More information is required.",
+                    "canvas": None,
+                }
+                if outcome == "needs_clarification":
+                    response_changes["questions"] = [
+                        {
+                            "id": "q1",
+                            "question": "What scale are you targeting?",
+                            "options": ["Small", "Production"],
+                        }
+                    ]
                 response = model_response(
-                    outcome=outcome,
-                    explanation="More information is required.",
-                    canvas=None,
+                    **response_changes,
                 )
                 session, factory = mocked_session(run_id)
                 with patch("workers.ai_chat_worker.async_session", factory):
@@ -291,16 +302,62 @@ class WorkerPersistenceTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(persisted)
                 statement = session.scalar.await_args.args[0]
                 values = statement_values(statement)
-                self.assertEqual(values["status"], AIRunStatus.FAILED)
-                self.assertEqual(values["error_code"], expected_code)
-                self.assertEqual(values["error_message"], response.explanation)
+                expected_status = (
+                    AIRunStatus.SUCCEEDED
+                    if outcome == "needs_clarification"
+                    else AIRunStatus.FAILED
+                )
+                self.assertEqual(values["status"], expected_status)
+                self.assertEqual(
+                    values["error_code"],
+                    expected_code if outcome == "unsupported" else None,
+                )
+                self.assertEqual(
+                    values["error_message"],
+                    response.explanation if outcome == "unsupported" else None,
+                )
                 self.assertEqual(values["explanation"], response.explanation)
-                self.assertIsNone(values["proposal_json"])
+                if outcome == "needs_clarification":
+                    self.assertEqual(
+                        values["proposal_json"]["questions"][0]["id"],
+                        "q1",
+                    )
+                else:
+                    self.assertIsNone(values["proposal_json"])
                 self.assertIsNone(values["stage"])
                 self.assertIn(
                     AIRunStatus.RUNNING,
                     statement.compile().params.values(),
                 )
+
+    async def test_second_clarification_round_is_rejected(self):
+        run_id = uuid4()
+        response = model_response(
+            outcome="needs_clarification",
+            explanation="More information is required.",
+            canvas=None,
+            questions=[
+                {
+                    "id": "q1",
+                    "question": "What scale are you targeting?",
+                    "options": ["Small", "Production"],
+                }
+            ],
+        )
+        session, factory = mocked_session(run_id)
+
+        with patch("workers.ai_chat_worker.async_session", factory):
+            persisted = await _persist_response(
+                run_id,
+                response,
+                clarification_round=True,
+            )
+
+        self.assertTrue(persisted)
+        values = statement_values(session.scalar.await_args.args[0])
+        self.assertEqual(values["status"], AIRunStatus.FAILED)
+        self.assertEqual(values["error_code"], "OUT_OF_SCOPE")
+        self.assertIsNone(values["proposal_json"])
 
     async def test_model_failure_is_persisted_safely(self):
         run_id = uuid4()

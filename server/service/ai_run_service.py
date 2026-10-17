@@ -39,6 +39,10 @@ class AIDesignCanvasRevisionRequiredError(Exception):
     pass
 
 
+class AIDesignCanvasRevisionConflictError(Exception):
+    pass
+
+
 def _serialize_run(run: AIRun) -> dict:
     return {
         "run_id": run.id,
@@ -89,6 +93,7 @@ async def create_ai_design_run(
     project_id: int,
     message: str,
     expected_canvas_revision: str | None = None,
+    clarification_answers: list[dict[str, str]] | None = None,
 ) -> dict:
     project = await get_owned_project(session, owner_id, project_id)
     if project is None:
@@ -104,22 +109,32 @@ async def create_ai_design_run(
     if current_revision is not None and expected_canvas_revision is None:
         await session.rollback()
         raise AIDesignCanvasRevisionRequiredError
+    if current_revision != expected_canvas_revision:
+        await session.rollback()
+        raise AIDesignCanvasRevisionConflictError
 
     run = AIRun(
         project_id=project.id,
         kind=AIRunKind.DESIGN,
         instruction=message,
         base_canvas_revision=expected_canvas_revision,
+        clarification_answers=clarification_answers,
         status=AIRunStatus.PENDING,
     )
     session.add(run)
     await session.flush()
+    display_message = message
+    if clarification_answers:
+        display_message = "Clarification answers: " + "; ".join(
+            f"{answer['question']}: {answer['answer']}"
+            for answer in clarification_answers
+        )
     session.add(
         AIMessage(
             project_id=project.id,
             run_id=run.id,
             role=AIMessageRole.USER,
-            message=message,
+            message=display_message,
         )
     )
     await session.commit()

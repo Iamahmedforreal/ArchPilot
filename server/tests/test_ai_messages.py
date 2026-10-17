@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from model.ai import AIMessageRole, AIRunKind, AIRunStatus
 from service.ai_run_service import (
+    AIDesignCanvasRevisionConflictError,
     AIDesignCanvasRevisionRequiredError,
     create_ai_design_run,
     get_project_ai_messages,
@@ -42,6 +43,29 @@ class AIMessagePersistenceTests(unittest.IsolatedAsyncioTestCase):
     async def test_design_submission_stores_expected_canvas_revision(self):
         session = MagicMock()
         session.scalar = AsyncMock(
+            return_value=SimpleNamespace(id=7, canvas_json_path="blob://canvas")
+        )
+        session.flush = AsyncMock()
+        session.commit = AsyncMock()
+
+        with patch(
+            "service.ai_run_service.load_project_canvas_revision",
+            AsyncMock(return_value="rev-4"),
+        ):
+            await create_ai_design_run(
+                session,
+                "user-1",
+                7,
+                "Add a cache",
+                "rev-4",
+            )
+
+        run = session.add.call_args_list[0].args[0]
+        self.assertEqual(run.base_canvas_revision, "rev-4")
+
+    async def test_design_submission_persists_clarification_answers(self):
+        session = MagicMock()
+        session.scalar = AsyncMock(
             return_value=SimpleNamespace(id=7, canvas_json_path=None)
         )
         session.flush = AsyncMock()
@@ -51,12 +75,22 @@ class AIMessagePersistenceTests(unittest.IsolatedAsyncioTestCase):
             session,
             "user-1",
             7,
-            "Add a cache",
-            "rev-4",
+            "Make my architecture scalable",
+            clarification_answers=[
+                {
+                    "question": "What scale are you targeting?",
+                    "answer": "Thousands of concurrent users",
+                }
+            ],
         )
 
         run = session.add.call_args_list[0].args[0]
-        self.assertEqual(run.base_canvas_revision, "rev-4")
+        self.assertEqual(run.clarification_answers[0]["answer"], "Thousands of concurrent users")
+        message = session.add.call_args_list[1].args[0]
+        self.assertEqual(
+            message.message,
+            "Clarification answers: What scale are you targeting?: Thousands of concurrent users",
+        )
 
     async def test_design_submission_requires_revision_for_saved_canvas(self):
         session = MagicMock()
@@ -102,6 +136,28 @@ class AIMessagePersistenceTests(unittest.IsolatedAsyncioTestCase):
 
         run = session.add.call_args_list[0].args[0]
         self.assertEqual(run.base_canvas_revision, "rev-4")
+
+    async def test_design_submission_rejects_stale_canvas_revision(self):
+        session = MagicMock()
+        session.scalar = AsyncMock(
+            return_value=SimpleNamespace(id=7, canvas_json_path="blob://canvas")
+        )
+        session.rollback = AsyncMock()
+
+        with patch(
+            "service.ai_run_service.load_project_canvas_revision",
+            AsyncMock(return_value="rev-5"),
+        ):
+            with self.assertRaises(AIDesignCanvasRevisionConflictError):
+                await create_ai_design_run(
+                    session,
+                    "user-1",
+                    7,
+                    "Add a cache",
+                    "rev-4",
+                )
+
+        session.add.assert_not_called()
 
     async def test_project_messages_expand_saved_response_as_assistant_message(self):
         created_at = datetime(2026, 10, 8, tzinfo=timezone.utc)
