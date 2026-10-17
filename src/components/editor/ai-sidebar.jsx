@@ -62,23 +62,14 @@ function ChatBubble({ message }) {
   )
 }
 
-function ClarificationForm({ clarification, isWorking, onContinue }) {
+function ClarificationForm({
+  clarification,
+  answers,
+  isWorking,
+  onAnswerChange,
+  onContinue,
+}) {
   const questions = clarification?.questions || []
-  const [answers, setAnswers] = useState(() =>
-    Object.fromEntries(
-      questions.map((question) => [
-        question.id,
-        "",
-      ])
-    )
-  )
-
-  function updateAnswer(question, answer) {
-    setAnswers((current) => ({
-      ...current,
-      [question.id]: answer,
-    }))
-  }
 
   const canContinue =
     questions.length > 0 &&
@@ -109,7 +100,7 @@ function ClarificationForm({ clarification, isWorking, onContinue }) {
                   name={`clarification-${question.id}`}
                   value={option}
                   checked={answers[question.id] === option}
-                  onChange={() => updateAnswer(question, option)}
+                  onChange={() => onAnswerChange(question.id, option)}
                   className="mt-0.5 accent-brand"
                 />
                 <span>{option}</span>
@@ -123,7 +114,9 @@ function ClarificationForm({ clarification, isWorking, onContinue }) {
                 ? ""
                 : answers[question.id] || ""
             }
-            onChange={(event) => updateAnswer(question, event.target.value)}
+            onChange={(event) =>
+              onAnswerChange(question.id, event.target.value)
+            }
             placeholder="Or enter a custom answer"
             aria-label={`Custom answer for ${question.question}`}
             className="w-full rounded-lg border border-surface-border bg-base px-2.5 py-2 text-xs text-copy-primary outline-none placeholder:text-copy-muted focus:border-brand/60"
@@ -152,9 +145,11 @@ function ClarificationForm({ clarification, isWorking, onContinue }) {
 
 function WorkflowStatus({
   workflow,
+  clarificationAnswers,
   isWorking,
   onApply,
   onCheckStatusAgain,
+  onClarificationAnswerChange,
   onContinueClarification,
 }) {
   const isProgressPhase = ["submitting", "polling", "paused"].includes(
@@ -216,7 +211,9 @@ function WorkflowStatus({
           <ClarificationForm
             key={workflow.runId}
             clarification={workflow.clarification}
+            answers={clarificationAnswers}
             isWorking={isWorking}
+            onAnswerChange={onClarificationAnswerChange}
             onContinue={onContinueClarification}
           />
         )}
@@ -227,12 +224,14 @@ function WorkflowStatus({
 
 function AiArchitectTab({
   draft,
+  clarificationAnswers,
   isWorking,
   messages,
   workflow,
   onApplyProposal,
   onCheckStatusAgain,
   onDraftChange,
+  onClarificationAnswerChange,
   onSubmitClarification,
   onSubmitMessage,
 }) {
@@ -384,9 +383,11 @@ function AiArchitectTab({
             ))}
             <WorkflowStatus
               workflow={workflow}
+              clarificationAnswers={clarificationAnswers}
               isWorking={isWorking}
               onApply={onApplyProposal}
               onCheckStatusAgain={onCheckStatusAgain}
+              onClarificationAnswerChange={onClarificationAnswerChange}
               onContinueClarification={onSubmitClarification}
             />
           </div>
@@ -394,9 +395,11 @@ function AiArchitectTab({
         {messages.length === 0 && (
           <WorkflowStatus
             workflow={workflow}
+            clarificationAnswers={clarificationAnswers}
             isWorking={isWorking}
             onApply={onApplyProposal}
             onCheckStatusAgain={onCheckStatusAgain}
+            onClarificationAnswerChange={onClarificationAnswerChange}
             onContinueClarification={onSubmitClarification}
           />
         )}
@@ -512,6 +515,7 @@ function AiSidebar({
 }) {
   const [activeTab, setActiveTab] = useState("architect")
   const [draft, setDraft] = useState("")
+  const [clarificationAnswers, setClarificationAnswers] = useState({})
   const [messages, setMessages] = useState([])
   const [specWorkflow, setSpecWorkflow] = useState({
     phase: "idle",
@@ -526,6 +530,10 @@ function AiSidebar({
   const messageLoadAbortRef = useRef(null)
   const closeAssistant = useEffectEvent(onClose)
   const [isMobileDialog, setIsMobileDialog] = useState(getIsMobileDialogViewport)
+
+  useEffect(() => {
+    setClarificationAnswers({})
+  }, [projectId])
 
   const isWorking =
     workflow.phase === "submitting" || workflow.phase === "polling"
@@ -848,7 +856,7 @@ function AiSidebar({
     const content = nextContent.trim()
 
     if (!content || isWorking) {
-      return
+      return false
     }
 
     messageLoadAbortRef.current?.abort()
@@ -876,29 +884,28 @@ function AiSidebar({
           currentMessages.filter((message) => message.id !== messageId)
         )
       }
-      return
+      return false
     }
 
-    if (submitted) {
-      const abortController = new AbortController()
-      messageLoadAbortRef.current = abortController
-      loadProjectMessages(abortController.signal)
-        .then((savedMessages) => {
-          if (messageLoadAbortRef.current === abortController) {
-            setMessages(savedMessages)
-          }
-        })
-        .catch((error) => {
-          if (error.name !== "AbortError") {
-            console.error(error)
-          }
-        })
-        .finally(() => {
-          if (messageLoadAbortRef.current === abortController) {
-            messageLoadAbortRef.current = null
-          }
-        })
-    }
+    const abortController = new AbortController()
+    messageLoadAbortRef.current = abortController
+    loadProjectMessages(abortController.signal)
+      .then((savedMessages) => {
+        if (messageLoadAbortRef.current === abortController) {
+          setMessages(savedMessages)
+        }
+      })
+      .catch((error) => {
+        if (error.name !== "AbortError") {
+          console.error(error)
+        }
+      })
+      .finally(() => {
+        if (messageLoadAbortRef.current === abortController) {
+          messageLoadAbortRef.current = null
+        }
+      })
+    return true
   }
 
   async function submitClarification(answers) {
@@ -907,10 +914,14 @@ function AiSidebar({
       return
     }
 
-    await submitMessage(instruction, {
+    const submitted = await submitMessage(instruction, {
       clarificationAnswers: answers,
       showUserMessage: false,
     })
+
+    if (submitted) {
+      setClarificationAnswers({})
+    }
   }
 
   async function generateSpec({ canvasControllerRef, getToken, projectId }) {
@@ -1073,12 +1084,19 @@ function AiSidebar({
         {activeTab === "architect" ? (
           <AiArchitectTab
             draft={draft}
+            clarificationAnswers={clarificationAnswers}
             isWorking={isWorking}
             messages={messages}
             workflow={workflow}
             onApplyProposal={onApplyProposal}
             onCheckStatusAgain={onCheckStatusAgain}
             onDraftChange={setDraft}
+            onClarificationAnswerChange={(questionId, answer) =>
+              setClarificationAnswers((current) => ({
+                ...current,
+                [questionId]: answer,
+              }))
+            }
             onSubmitClarification={submitClarification}
             onSubmitMessage={submitMessage}
           />

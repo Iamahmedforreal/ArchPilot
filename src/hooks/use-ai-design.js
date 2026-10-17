@@ -111,6 +111,9 @@ function useAiDesign({ projectId, getToken, canvasControllerRef }) {
         projectId,
         phase: "submitting",
         statusMessage: "Submitting request...",
+        clarification: options.clarificationAnswers
+          ? visibleWorkflow.clarification
+          : null,
       })
 
       try {
@@ -160,17 +163,33 @@ function useAiDesign({ projectId, getToken, canvasControllerRef }) {
         }
 
         activeRequestRef.current = false
-        setWorkflow({
-          ...initialWorkflow,
-          projectId,
-          phase: "failed",
-          statusMessage:
-            error.detail || "The design request could not be submitted. Try again.",
+        setWorkflow((current) => {
+          if (
+            options.clarificationAnswers &&
+            current.phase === "submitting" &&
+            current.clarification
+          ) {
+            return {
+              ...current,
+              phase: "clarification",
+              statusMessage:
+                error.detail ||
+                "The clarification could not be submitted. Try again.",
+            }
+          }
+
+          return {
+            ...initialWorkflow,
+            projectId,
+            phase: "failed",
+            statusMessage:
+              error.detail || "The design request could not be submitted. Try again.",
+          }
         })
         return false
       }
     },
-    [canvasControllerRef, getToken, projectId]
+    [canvasControllerRef, getToken, projectId, visibleWorkflow.clarification]
   )
 
   useEffect(() => {

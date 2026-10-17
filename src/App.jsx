@@ -59,6 +59,23 @@ function EditorShell({ pathname, navigate }) {
   }, [activeWorkspaceId])
 
   const projectActions = useProjectActions(activeWorkspaceId, navigate)
+  useEffect(() => {
+    if (activeWorkspaceId || projectActions.ownedProjects.length === 0) {
+      return
+    }
+
+    let isCurrent = true
+    queueMicrotask(() => {
+      if (isCurrent) {
+        setIsProjectSidebarOpen(true)
+      }
+    })
+
+    return () => {
+      isCurrent = false
+    }
+  }, [activeWorkspaceId, projectActions.ownedProjects.length])
+
   const activeProject =
     projectActions.ownedProjects.find(
       (project) =>
