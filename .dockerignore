@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+node_modules
+dist
+dist-ssr
+coverage
+*.log
+server/.env
+server/.venv
+server/venv
+server/__pycache__
+**/__pycache__
+**/*.py[cod]

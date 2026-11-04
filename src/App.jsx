@@ -254,6 +254,12 @@ function EditorShell({ pathname, navigate }) {
     if (!activeWorkspaceId) {
       return (
         <section className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-dotted px-6 text-center">
+          <EditorNavbar
+            className="absolute left-3 right-3 top-3"
+            isSidebarOpen={isProjectSidebarOpen}
+            onToggleSidebar={() => setIsProjectSidebarOpen((isOpen) => !isOpen)}
+            projectName={activeProject?.name}
+          />
           <div className="max-w-md">
             <h1 className="text-2xl font-semibold tracking-tight text-copy-primary">
               Create a project or open an existing one
@@ -309,7 +315,7 @@ function EditorShell({ pathname, navigate }) {
     }
 
     return (
-      <section className="relative flex min-h-0 flex-1 overflow-hidden bg-base">
+      <section className="relative flex min-h-0 flex-1 overflow-hidden bg-canvas">
         <EditorCanvas
           key={activeWorkspaceId}
           canvasControllerRef={canvasControllerRef}
@@ -322,6 +328,19 @@ function EditorShell({ pathname, navigate }) {
           initialCanvas={initialCanvas}
           onCanvasRetry={retryCanvasRequest}
           onSaveStatusChange={setCanvasSaveStatus}
+        />
+        <EditorNavbar
+          className="absolute left-3 right-3 top-3"
+          isSidebarOpen={isProjectSidebarOpen}
+          isAiSidebarOpen={isAiSidebarOpen}
+          onToggleSidebar={() => setIsProjectSidebarOpen((isOpen) => !isOpen)}
+          onToggleAiSidebar={() => setIsAiSidebarOpen((isOpen) => !isOpen)}
+          onOpenTemplates={() => setIsTemplatesModalOpen(true)}
+          onSaveCanvas={saveCanvasNow}
+          onReloadCanvas={reloadCanvasFromServer}
+          onOverwriteCanvas={overwriteCanvasWithLocal}
+          projectName={activeProject?.name}
+          saveStatus={canvasSaveStatus}
         />
         <AiSidebar
           key={activeWorkspaceId}
@@ -341,23 +360,7 @@ function EditorShell({ pathname, navigate }) {
   }
 
   return (
-    <main className="flex min-h-screen flex-col bg-base text-copy-primary">
-      <EditorNavbar
-        isSidebarOpen={isProjectSidebarOpen}
-        isAiSidebarOpen={isAiSidebarOpen}
-        onToggleSidebar={() => setIsProjectSidebarOpen((isOpen) => !isOpen)}
-        onToggleAiSidebar={
-          activeWorkspaceId ? () => setIsAiSidebarOpen((isOpen) => !isOpen) : undefined
-        }
-        onOpenTemplates={
-          activeWorkspaceId ? () => setIsTemplatesModalOpen(true) : undefined
-        }
-        onSaveCanvas={activeWorkspaceId ? saveCanvasNow : undefined}
-        onReloadCanvas={activeWorkspaceId ? reloadCanvasFromServer : undefined}
-        onOverwriteCanvas={activeWorkspaceId ? overwriteCanvasWithLocal : undefined}
-        projectName={activeProject?.name}
-        saveStatus={canvasSaveStatus}
-      />
+    <main className="flex h-dvh min-h-screen flex-col overflow-hidden bg-base text-copy-primary">
       <ProjectSidebar
         isOpen={isProjectSidebarOpen}
         onClose={() => setIsProjectSidebarOpen(false)}

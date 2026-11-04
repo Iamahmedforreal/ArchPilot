@@ -119,7 +119,20 @@ documentation.
 
 ### Start the application
 
-Start the local database and Redis from `server/`:
+To run the complete application in containers, from the project root run:
+
+```powershell
+docker compose up --build
+```
+
+This starts the frontend, FastAPI backend, ARQ worker, PostgreSQL, and Redis.
+The frontend is available at [http://localhost:5173](http://localhost:5173),
+and its Nginx `/api` proxy communicates with the backend container. Compose
+uses `database` and `redis` as the internal service hostnames. Set
+`POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB` in the root `.env` if
+you need values other than the defaults.
+
+For host-based development, start the local database and Redis from `server/`:
 
 ```powershell
 Set-Location server

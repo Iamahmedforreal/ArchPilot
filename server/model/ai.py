@@ -18,6 +18,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from model.project import Base, Project
 
+"""enumS for the status of the AI run, kind of the AI run
+ and role of the message    
+ in the conversation between user and assistant"""
 
 class AIRunStatus(str, enum.Enum):
     PENDING = "PENDING"
@@ -25,18 +28,17 @@ class AIRunStatus(str, enum.Enum):
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
     CANCELLED = "CANCELLED"
-
-
 class AIRunKind(str, enum.Enum):
     DESIGN = "DESIGN"
     SPEC = "SPEC"
-
-
 class AIMessageRole(str, enum.Enum):
     USER = "USER"
     ASSISTANT = "ASSISTANT"
 
 
+
+
+""" File blob table to store the blob url for the files uploaded by the user. """
 class FileBlob(Base):
     __tablename__ = "files_blob"
     __table_args__ = (
@@ -58,6 +60,8 @@ class FileBlob(Base):
     project: Mapped[Project] = relationship()
 
 
+
+""" Ai run table to track the status of AI runs for generating canvas or spec based on user instructions. """
 class AIRun(Base):
     __tablename__ = "ai_runs"
     __table_args__ = (
@@ -138,6 +142,7 @@ class AIRun(Base):
     file_blob: Mapped[FileBlob | None] = relationship()
 
 
+#Ai  massage for tracking the conversation between user and assistant
 class AIMessage(Base):
     __tablename__ = "ai_messages"
     __table_args__ = (
