@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     gemini_max_output_tokens: int | None = 6000
     ai_rate_limit_capacity: int = 5
     ai_rate_limit_period_seconds: int = 60
-
+    origins_allowed: list[str]
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @field_validator("google_gemini_api_key", mode="before")
