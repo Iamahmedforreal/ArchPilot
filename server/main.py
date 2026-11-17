@@ -2,13 +2,22 @@ from contextlib import asynccontextmanager
 
 from arq import create_pool
 from fastapi import FastAPI
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
-from middleware.ai_rate_limit import AIRateLimitMiddleware
 from routes.ai_route import router as ai_router
 from routes.projects import router as projects_router
 from utils.redis import redis_settings 
+from utils.user_address import get_user_address
 from utils.utils import settings
 from fastapi.middleware.cors import CORSMiddleware
+
+
+limiter = Limiter(
+    key_func=get_user_address,
+    default_limits=["5/3minutes"],
+)
 
 #redis connection pool
 @asynccontextmanager
@@ -21,9 +30,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-
-#middle ware for AI rate limiting
-app.add_middleware(AIRateLimitMiddleware)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 origins_allowed=[
     "http://localhost:5173",

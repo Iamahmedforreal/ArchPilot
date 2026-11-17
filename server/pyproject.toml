@@ -13,5 +13,6 @@ dependencies = [
     "google-genai>=2.24.0",
     "python-dotenv>=1.2.3",
     "sqlalchemy>=2.0.52",
+    "slowapi>=0.1.9",
     "vercel>=0.10.0",
 ]
