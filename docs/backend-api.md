@@ -149,10 +149,8 @@ server version. A successful response contains the blob path and new revision:
 
 ## AI Runs
 
-The two AI submission endpoints are protected by a per-user Redis token bucket.
-Each authenticated user has a capacity of five requests, refilling over 60
-seconds. A depleted bucket returns `429`; a Redis limiter failure returns `503`.
-AI run polling and file downloads are not rate-limited. See
+All HTTP endpoints are protected by SlowAPI with a limit of five requests per
+client IP within three minutes. A depleted window returns `429`. See
 `docs/rate-limiting.md` for the implementation details.
 
 ### `POST /api/projects/{project_id}/ai/design`
